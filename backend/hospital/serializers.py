@@ -116,7 +116,21 @@ class HospitalizacionSerializer(serializers.ModelSerializer):
         fields = '__all__'
     
     def get_dias_hospitalizacion(self, obj):
+        from django.utils import timezone
         from datetime import datetime
-        fecha_fin = obj.fecha_alta if obj.fecha_alta else datetime.now()
-        delta = fecha_fin - obj.fecha_ingreso
+        
+        if obj.fecha_alta:
+            fecha_fin = obj.fecha_alta
+            # Asegurar que fecha_fin tenga timezone
+            if timezone.is_naive(fecha_fin):
+                fecha_fin = timezone.make_aware(fecha_fin)
+        else:
+            fecha_fin = timezone.now()
+        
+        # Asegurar que fecha_ingreso tenga timezone
+        fecha_ingreso = obj.fecha_ingreso
+        if timezone.is_naive(fecha_ingreso):
+            fecha_ingreso = timezone.make_aware(fecha_ingreso)
+        
+        delta = fecha_fin - fecha_ingreso
         return delta.days

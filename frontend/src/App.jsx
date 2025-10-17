@@ -243,6 +243,19 @@ const fetchPacientesHabitacion = async (habitacionId) => {
     }
   };
 
+  const fetchHospitalizaciones = async () => {
+    try {
+      const response = await fetch(`${API_URL}/hospitalizaciones/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      console.log('📊 Hospitalizaciones recibidas:', data);
+      setHospitalizacionesActivas(data.results || data);
+    } catch (error) {
+      console.error('Error al obtener hospitalizaciones:', error);
+    }
+  };
+
   const fetchCitas = async () => {
     try {
       const response = await fetch(`${API_URL}/citas/`, {
@@ -605,6 +618,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
       if (activeView === 'doctores') fetchDoctores();
       if (activeView === 'habitaciones') fetchHabitaciones();
       if (activeView === 'historias') fetchHistoriasClinicas();
+      if (activeView === 'hospitalizacion') fetchHospitalizaciones();
     }
   }, [activeView, token]);
 

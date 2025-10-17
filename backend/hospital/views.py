@@ -9,6 +9,7 @@ from .models import *
 from .serializers import *
 from .permissions import IsAdminUser, IsDoctorOrAdmin, IsEnfermeroOrAbove, IsDoctorOnly, CanViewOwnCitas, CanViewDepartmentPacientes
 
+
 class PacienteViewSet(viewsets.ModelViewSet):
     queryset = Paciente.objects.all()
     serializer_class = PacienteSerializer
@@ -43,6 +44,7 @@ class PacienteViewSet(viewsets.ModelViewSet):
             return Paciente.objects.filter(id=user.paciente_asociado.id)
         
         return Paciente.objects.none()
+    
     @action(detail=True, methods=['get'])
     def historia_clinica(self, request, pk=None):
         paciente = self.get_object()
@@ -323,48 +325,62 @@ class HospitalizacionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filtrar hospitalizaciones según el rol"""
         user = self.request.user
+        print(f"🔍 Usuario: {user.username}, Rol: {user.rol}")
         
-        # Admin, Doctor, Enfermero ven todo
-        if user.rol in ['admin', 'doctor', 'enfermero']:
+        # Admin ve TODO
+        if user.rol == 'admin':
             return Hospitalizacion.objects.all()
         
-        # Paciente solo ve sus propias hospitalizaciones
-        if user.rol == 'paciente' and user.paciente_asociado:
-            return Hospitalizacion.objects.filter(paciente=user.paciente_asociado)
+        # Doctor ve SOLO su departamento
+        if user.rol == 'doctor':
+            try:
+                doctor = Doctor.objects.get(usuario=user)
+                print(f"👨‍⚕️ Doctor encontrado: Dr. {doctor.usuario.get_full_name() or doctor.usuario.username}")  # ⬅️ CAMBIO AQUÍ
+                print(f"🏥 Departamento: {doctor.departamento}")
+                
+                hospitalizaciones = Hospitalizacion.objects.filter(
+                    habitacion__departamento=doctor.departamento,
+                    estado='activa'
+                ).select_related('paciente', 'habitacion', 'doctor_responsable')
+                
+                print(f"📊 Hospitalizaciones encontradas: {hospitalizaciones.count()}")
+                return hospitalizaciones
+                
+            except Doctor.DoesNotExist:
+                print(f"❌ Doctor no encontrado")
+                return Hospitalizacion.objects.none()
         
-        return Hospitalizacion.objects.none()
-    
-    def get_permissions(self):
-        """Solo doctores pueden gestionar hospitalizaciones"""
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsDoctorOrAdmin()]
-        return [IsAuthenticated()]
-    
-    def perform_create(self, serializer):
-        hospitalizacion = serializer.save()
-        habitacion = hospitalizacion.habitacion
-        habitacion.ocupada = True
-        habitacion.save()
-    
-    @action(detail=True, methods=['post'])
-    def dar_alta(self, request, pk=None):
-        if request.user.rol not in ['doctor', 'admin']:
-            return Response(
-                {'error': 'No tiene permiso para dar altas'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        def get_permissions(self):
+            """Solo doctores pueden gestionar hospitalizaciones"""
+            if self.action in ['create', 'update', 'partial_update', 'destroy']:
+                return [IsAuthenticated(), IsDoctorOrAdmin()]
+            return [IsAuthenticated()]
         
-        hospitalizacion = self.get_object()
-        hospitalizacion.fecha_alta = datetime.now()
-        hospitalizacion.estado = 'alta'
-        hospitalizacion.save()
+        def perform_create(self, serializer):
+            hospitalizacion = serializer.save()
+            habitacion = hospitalizacion.habitacion
+            habitacion.ocupada = True
+            habitacion.save()
         
-        habitacion = hospitalizacion.habitacion
-        habitacion.ocupada = False
-        habitacion.save()
+        @action(detail=True, methods=['post'])
+        def dar_alta(self, request, pk=None):
+            if request.user.rol not in ['doctor', 'admin']:
+                return Response(
+                    {'error': 'No tiene permiso para dar altas'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            hospitalizacion = self.get_object()
+            hospitalizacion.fecha_alta = datetime.now()
+            hospitalizacion.estado = 'alta'
+            hospitalizacion.save()
+            
+            habitacion = hospitalizacion.habitacion
+            habitacion.ocupada = False
+            habitacion.save()
+            
+            return Response({'status': 'Alta registrada'})
         
-        return Response({'status': 'Alta registrada'})
-    
 class PrescripcionViewSet(viewsets.ModelViewSet):
     queryset = Prescripcion.objects.all()
     serializer_class = PrescripcionSerializer
