@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Stethoscope, Bed, Activity, Clock, Search, Plus, X, User, LogOut, Home, FileText } from 'lucide-react';
+import { Calendar, Users, Stethoscope, Bed, Activity, Clock, Search, Plus, X, User, LogOut, Home, FileText, Phone } from 'lucide-react';
+
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -19,6 +20,8 @@ const HospitalManagementSystem = () => {
   const [pacienteHistorias, setPacienteHistorias] = useState([]);
   const [pacienteCitas, setPacienteCitas] = useState([]);
   const [activeTab, setActiveTab] = useState('info');
+  const [selectedHabitacion, setSelectedHabitacion] = useState(null);
+  const [pacientesHabitacion, setPacientesHabitacion] = useState([]);
 
   // AGREGAR DESPUÉS DE LOS ESTADOS EXISTENTES
   const [misDoctorData, setMisDoctorData] = useState(null);
@@ -132,6 +135,30 @@ const HospitalManagementSystem = () => {
     }
   };
 
+  const cambiarEstadoCita = async (citaId, nuevoEstado) => {
+  try {
+    const response = await fetch(`${API_URL}/citas/${citaId}/cambiar_estado/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ estado: nuevoEstado })
+    });
+
+    if (response.ok) {
+      alert('Estado actualizado');
+      fetchMisCitasHoy();
+      fetchCitas();
+    } else {
+      alert('Error al actualizar el estado');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    alert('Error al actualizar el estado');
+  }
+};
+
   
   const fetchPacienteDetalle = async (pacienteId) => {
   try {
@@ -160,13 +187,47 @@ const HospitalManagementSystem = () => {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const citasData = await citasResponse.json();
-    setPacienteCitas(citasData);
+      setPacienteCitas(citasData);
 
-    // Cambiar vista al perfil
-    setActiveView('perfil-paciente');
+      // Cambiar vista al perfil
+      setActiveView('perfil-paciente');
+    } catch (error) {
+      console.error('Error detallado:', error);
+      alert('Error al cargar los datos: ' + error.message);
+    }
+  };
+
+
+const fetchPacientesHabitacion = async (habitacionId) => {
+  console.log('🔍 INICIO - Habitación ID:', habitacionId);
+  console.log('🔑 Token existe:', !!token);
+  
+  try {
+    const url = `${API_URL}/habitaciones/${habitacionId}/pacientes/`;
+    console.log('📡 URL completa:', url);
+    
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response OK:', response.ok);
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ Datos recibidos:', data);
+    console.log('📊 Cantidad de pacientes:', data.length);
+    
+    const pacientesArray = Array.isArray(data) ? data : [];
+    console.log('🔄 Actualizando estado con:', pacientesArray);
+    setPacientesHabitacion(pacientesArray);
   } catch (error) {
-    console.error('Error detallado:', error);
-    alert('Error al cargar los datos: ' + error.message);
+    console.error('❌ ERROR COMPLETO:', error);
+    alert(`Error al cargar pacientes: ${error.message}`);
+    setPacientesHabitacion([]);
   }
 };
 
@@ -557,6 +618,23 @@ const HospitalManagementSystem = () => {
       fetchMedicamentos();
     }
   }, [token, user]);
+  // Cargar pacientes de la habitación seleccionada
+  useEffect(() => {
+  console.log('🔄 useEffect disparado');
+  console.log('📌 Token:', !!token);
+  console.log('🏥 Habitación seleccionada:', selectedHabitacion);
+  console.log('👁️ Vista activa:', activeView);
+  
+  if (token && selectedHabitacion && activeView === 'detalle-habitacion') {
+    console.log('✅ Todas las condiciones cumplidas, fetching...');
+    fetchPacientesHabitacion(selectedHabitacion.id);
+  } else {
+    console.log('❌ Condiciones NO cumplidas');
+    if (!token) console.log('   - Falta token');
+    if (!selectedHabitacion) console.log('   - Falta habitación seleccionada');
+    if (activeView !== 'detalle-habitacion') console.log('   - Vista incorrecta:', activeView);
+  }
+}, [selectedHabitacion, activeView, token]);
 
   // Función para verificar permisos
   const canAccess = (feature) => {
@@ -622,8 +700,9 @@ const HospitalManagementSystem = () => {
           
           <div className="mt-6 p-4 bg-gray-50 rounded-lg text-xs text-gray-600">
             <p className="font-semibold mb-2">Usuarios de prueba:</p>
-            <p>• Admin: admin / tu_contraseña</p>
-            <p>• Paciente: juan.perez / paciente123</p>
+            <p>• Admin: admin / Medac123</p>
+            <p>• Medico: garcia / Medac123</p>
+            <p>• Paciente: juan / Medac123</p>
           </div>
         </div>
       </div>
@@ -1428,142 +1507,226 @@ const HospitalManagementSystem = () => {
     );
   };
 
-  const renderCitas = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">
-          {user?.rol === 'paciente' ? 'Mis Citas Médicas' : 'Citas Médicas'}
-        </h2>
-        {canAccess('crear_cita') && (
-          <button 
-            onClick={() => setShowModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-green-700 transition-colors"
-          >
-            <Plus size={20} className="mr-2" />
-            Nueva Cita
-          </button>
-        )}
-      </div>
+  const renderCitas = () => {
+    const isMedicoView = user?.rol === 'doctor' || user?.rol === 'enfermero';
 
-      {citas.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-          <Calendar className="text-gray-400 mx-auto mb-4" size={48} />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">No hay citas registradas</h3>
-          <p className="text-gray-600">
-            {user?.rol === 'paciente' 
-              ? 'Aún no tienes citas programadas.' 
-              : 'No hay citas en el sistema.'}
-          </p>
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-800">
+            {isMedicoView && user?.rol === 'doctor' ? 'Mis Citas' : 'Citas Médicas'}
+          </h2>
+          {user?.rol === 'doctor' && (
+            <button 
+              onClick={() => setShowModal(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-green-700 transition-colors"
+            >
+              <Plus size={20} className="mr-2" />
+              Nueva Cita
+            </button>
+          )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {citas.map((cita) => (
-            <div key={cita.id} className="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center">
-                  <Calendar className="text-blue-600 mr-2" size={20} />
-                  <span className="text-sm font-semibold text-gray-700">
-                    {new Date(cita.fecha_hora).toLocaleDateString('es-ES')}
+
+        {citas.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+            <Calendar className="text-gray-400 mx-auto mb-4" size={48} />
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">No hay citas registradas</h3>
+            <p className="text-gray-600">
+              {user?.rol === 'doctor' 
+                ? 'No tienes citas programadas.' 
+                : 'No hay citas en el sistema.'}
+            </p>
+          </div>
+        ) : (
+          <div className={`grid ${isMedicoView ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'} gap-4`}>
+            {citas.map((cita) => (
+              <div 
+                key={cita.id} 
+                className={`bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-all cursor-pointer border-2 ${
+                  cita.estado === 'programada' ? 'border-blue-200 hover:border-blue-400' :
+                  cita.estado === 'en_curso' ? 'border-yellow-200 hover:border-yellow-400' :
+                  cita.estado === 'completada' ? 'border-green-200 hover:border-green-400' :
+                  'border-red-200 hover:border-red-400'
+                }`}
+                onClick={() => {
+                  if (user?.rol === 'doctor') {
+                    setCitaEnConsulta(cita);
+                    setActiveView('consulta');
+                  }
+                }}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center">
+                    <Calendar className="text-blue-600 mr-2" size={20} />
+                    <div>
+                      <span className="text-sm font-semibold text-gray-700 block">
+                        {new Date(cita.fecha_hora).toLocaleDateString('es-ES', { 
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short'
+                        })}
+                      </span>
+                      <span className="text-lg font-bold text-gray-800">
+                        {new Date(cita.fecha_hora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                    cita.estado === 'programada' ? 'bg-blue-100 text-blue-800' :
+                    cita.estado === 'en_curso' ? 'bg-yellow-100 text-yellow-800' :
+                    cita.estado === 'completada' ? 'bg-green-100 text-green-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {cita.estado}
                   </span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                  cita.estado === 'programada' ? 'bg-blue-100 text-blue-800' :
-                  cita.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                  cita.estado === 'cancelada' ? 'bg-red-100 text-red-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {cita.estado}
-                </span>
-              </div>
-              
-              <h4 className="font-semibold text-gray-800 mb-2">
-                {cita.paciente_info ? `${cita.paciente_info.nombre} ${cita.paciente_info.apellidos}` : 'Paciente'}
-              </h4>
-              
-              <div className="space-y-1 text-sm text-gray-600">
-                <p className="flex items-center">
-                  <Stethoscope className="mr-2" size={16} />
-                  {cita.doctor_info ? cita.doctor_info.nombre_completo : 'Doctor'}
+                
+                <div className="mb-3 pb-3 border-b border-gray-200">
+                  <h4 className="font-semibold text-gray-800">
+                    {cita.paciente_info.nombre} {cita.paciente_info.apellidos}
+                  </h4>
+                  <p className="text-xs text-gray-600">N° Historia: {cita.paciente_info.numero_historia}</p>
+                </div>
+                
+                <div className="space-y-1 text-sm text-gray-600 mb-4">
+                  <p className="flex items-center">
+                    <Activity className="mr-2" size={16} />
+                    Sangre: {cita.paciente_info.tipo_sangre}
+                  </p>
+                  <p className="flex items-center">
+                    <Phone className="mr-2" size={16} />
+                    {cita.paciente_info.telefono}
+                  </p>
+                </div>
+
+                <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded mb-4 line-clamp-2">
+                  <span className="font-semibold">Motivo:</span> {cita.motivo}
                 </p>
-                <p className="flex items-center">
-                  <Clock className="mr-2" size={16} />
-                  {new Date(cita.fecha_hora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-              
-              <p className="mt-3 text-sm text-gray-700 line-clamp-2">{cita.motivo}</p>
-            </div>
-          ))}
-        </div>
-      )}
 
-      {showModal && canAccess('crear_cita') && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">Nueva Cita</h3>
-              <button onClick={() => setShowModal(false)}>
-                <X size={24} className="text-gray-600 hover:text-gray-800" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateCita} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Paciente ID</label>
-                <input
-                  type="number"
-                  value={newCita.paciente}
-                  onChange={(e) => setNewCita({...newCita, paciente: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+                {user?.rol === 'doctor' && cita.estado === 'programada' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cambiarEstadoCita(cita.id, 'en_curso');
+                      }}
+                      className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold py-2 rounded transition-colors"
+                    >
+                      Iniciar
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cambiarEstadoCita(cita.id, 'cancelada');
+                      }}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+                
+                {user?.rol === 'doctor' && cita.estado === 'en_curso' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cambiarEstadoCita(cita.id, 'completada');
+                      }}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded transition-colors"
+                    >
+                      Completar
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cambiarEstadoCita(cita.id, 'cancelada');
+                      }}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Doctor ID</label>
-                <input
-                  type="number"
-                  value={newCita.doctor}
-                  onChange={(e) => setNewCita({...newCita, doctor: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+                {user?.rol === 'doctor' && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 text-center">
+                    <p className="text-xs text-blue-600 font-semibold">Haz clic para ver detalles completos</p>
+                  </div>
+                )}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha y Hora</label>
-                <input
-                  type="datetime-local"
-                  value={newCita.fecha_hora}
-                  onChange={(e) => setNewCita({...newCita, fecha_hora: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
-                <textarea
-                  value={newCita.motivo}
-                  onChange={(e) => setNewCita({...newCita, motivo: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-              >
-                Crear Cita
-              </button>
-            </form>
+            ))}
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+
+        {showModal && canAccess('crear_cita') && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Nueva Cita</h3>
+                <button onClick={() => setShowModal(false)}>
+                  <X size={24} className="text-gray-600 hover:text-gray-800" />
+                </button>
+              </div>
+              
+              <form onSubmit={handleCreateCita} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Paciente ID</label>
+                  <input
+                    type="number"
+                    value={newCita.paciente}
+                    onChange={(e) => setNewCita({...newCita, paciente: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor ID</label>
+                  <input
+                    type="number"
+                    value={newCita.doctor}
+                    onChange={(e) => setNewCita({...newCita, doctor: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha y Hora</label>
+                  <input
+                    type="datetime-local"
+                    value={newCita.fecha_hora}
+                    onChange={(e) => setNewCita({...newCita, fecha_hora: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
+                  <textarea
+                    value={newCita.motivo}
+                    onChange={(e) => setNewCita({...newCita, motivo: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    rows="3"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                >
+                  Crear Cita
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
   const renderDoctores = () => {
     if (!canAccess('doctores')) {
       return (
@@ -1634,14 +1797,14 @@ const HospitalManagementSystem = () => {
         </div>
       );
     }
+
     if (habitaciones.length === 0) {
       return (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-gray-800">Habitaciones</h2>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
+          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
             <Bed className="text-gray-400 mx-auto mb-4" size={48} />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">No hay habitaciones registradas</h3>
-            <p className="text-gray-600">Aún no hay habitaciones en el sistema.</p>
+            <p className="text-gray-600">No hay habitaciones disponibles</p>
           </div>
         </div>
       );
@@ -1651,34 +1814,226 @@ const HospitalManagementSystem = () => {
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-gray-800">Habitaciones</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {habitaciones.map((habitacion) => (
-            <div key={habitacion.id} className={`rounded-xl shadow-md p-5 ${
-              habitacion.ocupada ? 'bg-red-50 border-2 border-red-200' : 'bg-green-50 border-2 border-green-200'
-            }`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <Bed className={habitacion.ocupada ? 'text-red-600' : 'text-green-600'} size={24} />
-                  <span className="ml-2 font-bold text-gray-800">Hab. {habitacion.numero}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {habitaciones.map((habitacion) => {
+            const capacidad = {
+              'individual': 1,
+              'doble': 2,
+              'triple': 3,
+              'uci': 1,
+              'emergencia': 1,
+            }[habitacion.tipo] || 1;
+            
+            const ocupadas = habitacion.ocupadas || 0;
+            const disponible = ocupadas < capacidad;
+            const sobrecapacidad = ocupadas > capacidad; // ⬅️ AÑADIDO
+
+            return (
+              <div 
+                key={habitacion.id}
+                onClick={() => {
+                  setSelectedHabitacion(habitacion);
+                  setActiveView('detalle-habitacion');
+                }}
+                className={`rounded-xl shadow-md p-5 cursor-pointer transition-all hover:shadow-lg ${
+                  sobrecapacidad  // ⬅️ AÑADIDO
+                    ? 'bg-orange-50 border-2 border-orange-500 hover:border-orange-700' 
+                    : disponible 
+                      ? 'bg-green-50 border-2 border-green-300 hover:border-green-500' 
+                      : 'bg-red-50 border-2 border-red-300 hover:border-red-500'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center">
+                    <Bed className={
+                      sobrecapacidad ? 'text-orange-600' :  // ⬅️ AÑADIDO
+                      disponible ? 'text-green-600' : 'text-red-600'
+                    } size={28} />
+                    <div className="ml-3">
+                      <p className="font-bold text-gray-800">Hab. {habitacion.numero}</p>
+                      <p className="text-xs text-gray-600 capitalize">{habitacion.tipo}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-2xl font-bold ${sobrecapacidad ? 'text-orange-600' : 'text-gray-800'}`}>  {/* ⬅️ MODIFICADO */}
+                      {ocupadas}/{capacidad}
+                    </p>
+                    <p className="text-xs font-semibold text-gray-600">camas</p>
+                  </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                  habitacion.ocupada ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
-                }`}>
-                  {habitacion.ocupada ? 'Ocupada' : 'Disponible'}
-                </span>
+
+                <div className="mb-3 pb-3 border-b border-gray-300">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">Piso:</span> {habitacion.piso}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">Depto:</span> {habitacion.departamento_info?.nombre || 'N/A'}
+                  </p>
+                </div>
+
+                {sobrecapacidad ? (  // ⬅️ AÑADIDO BLOQUE COMPLETO
+                  <div className="px-3 py-1 rounded-full text-xs font-semibold inline-block bg-orange-200 text-orange-900">
+                    ⚠️ Sobrecapacidad ({ocupadas}/{capacidad})
+                  </div>
+                ) : (
+                  <div className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${
+                    disponible 
+                      ? 'bg-green-200 text-green-800' 
+                      : 'bg-red-200 text-red-800'
+                  }`}>
+                    {disponible ? '✓ Disponible' : 'Llena'}
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-600 mt-3 italic">Haz clic para ver detalles</p>
               </div>
-              
-              <div className="space-y-1 text-sm text-gray-700">
-                <p><strong>Tipo:</strong> {habitacion.tipo}</p>
-                <p><strong>Piso:</strong> {habitacion.piso}</p>
-                <p><strong>Depto:</strong> {habitacion.departamento_info?.nombre || 'N/A'}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
   };
+  const renderDetalleHabitacion = () => {
+  console.log('🎨 RENDER - pacientesHabitacion:', pacientesHabitacion);
+  console.log('🎨 RENDER - selectedHabitacion:', selectedHabitacion);
+  
+  if (!selectedHabitacion) {
+    console.log('⚠️ No hay habitación seleccionada');
+    return null;
+  }
+
+  const capacidad = {
+    'individual': 1,
+    'doble': 2,
+    'triple': 3,
+    'uci': 1,
+    'emergencia': 1,
+  }[selectedHabitacion.tipo] || 1;
+
+  console.log('📋 Capacidad:', capacidad);
+  console.log('📋 Pacientes en estado:', pacientesHabitacion);
+  console.log('📋 Longitud array:', pacientesHabitacion?.length);
+
+  return (
+    <div className="space-y-6">
+      <button
+        onClick={() => setActiveView('habitaciones')}
+        className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+      >
+        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a Habitaciones
+      </button>
+
+      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Habitación {selectedHabitacion.numero}</h1>
+            <p className="text-blue-100 capitalize">Tipo: {selectedHabitacion.tipo}</p>
+          </div>
+          <div className="text-right bg-white bg-opacity-20 px-6 py-4 rounded-lg">
+            <p className="text-3xl font-bold">{pacientesHabitacion.length}/{capacidad}</p>
+            <p className="text-blue-100 text-sm">Pacientes</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl shadow-md p-4">
+          <p className="text-sm text-gray-600">Piso</p>
+          <p className="text-2xl font-bold text-gray-800">{selectedHabitacion.piso}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-md p-4">
+          <p className="text-sm text-gray-600">Departamento</p>
+          <p className="text-lg font-bold text-gray-800">{selectedHabitacion.departamento_info?.nombre}</p>
+        </div>
+      </div>
+
+      {!pacientesHabitacion || pacientesHabitacion.length === 0 ? (
+        <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
+          <Bed className="text-gray-400 mx-auto mb-4" size={48} />
+          <p className="text-gray-600">No hay pacientes en esta habitación</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-gray-800">Pacientes Hospitalizados</h2>
+          {pacientesHabitacion.map((item, index) => { 
+            console.log(`👤 Renderizando paciente ${index}:`, item); 
+            return ( 
+              <div key={item.id || index} className="bg-white rounded-xl shadow-md p-6">  
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800">
+                      {item.paciente?.nombre || 'Sin nombre'} {item.paciente?.apellidos || ''}  
+                    </h3>
+                    <p className="text-sm text-gray-600">Nº Historia: {item.paciente?.numero_historia || 'N/A'}</p> 
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-blue-600">{item.hospitalizacion?.dias || 0}</p> 
+                    <p className="text-xs text-gray-600">días hospitalizados</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 pb-4 border-b">
+                  <div>
+                    <p className="text-xs text-gray-600">Tipo de Sangre</p>
+                    <p className="font-bold text-gray-800">{item.paciente?.tipo_sangre || 'N/A'}</p> 
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Teléfono</p>
+                    <p className="font-bold text-gray-800">{item.paciente?.telefono || 'N/A'}</p>  
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Doctor</p>
+                    <p className="font-bold text-gray-800">{item.doctor?.nombre || 'N/A'}</p>  
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Especialidad</p>
+                    <p className="font-bold text-gray-800">{item.doctor?.especialidad || 'N/A'}</p> 
+                  </div>
+                </div>
+
+                {item.paciente?.alergias && ( 
+                  <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded">
+                    <p className="text-xs font-bold text-red-700 mb-1">⚠️ ALERGIAS</p>
+                    <p className="text-sm text-red-800 font-semibold">{item.paciente.alergias}</p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
+                    <p className="text-xs font-bold text-blue-700 mb-1">MOTIVO DE HOSPITALIZACIÓN</p>
+                    <p className="text-sm text-gray-800">{item.hospitalizacion?.motivo || 'No especificado'}</p> 
+                  </div>
+
+                  <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded">
+                    <p className="text-xs font-bold text-green-700 mb-1">DIAGNÓSTICO</p>
+                    <p className="text-sm text-gray-800">{item.hospitalizacion?.diagnostico || 'No especificado'}</p>  
+                  </div>
+
+                  {item.ultima_consulta && (
+                    <>
+                      <div className="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
+                        <p className="text-xs font-bold text-yellow-700 mb-1">TRATAMIENTO</p>
+                        <p className="text-sm text-gray-800">{item.ultima_consulta.tratamiento}</p>
+                      </div>
+
+                      <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded">
+                        <p className="text-xs font-bold text-purple-700 mb-1">SÍNTOMAS ACTUALES</p>
+                        <p className="text-sm text-gray-800">{item.ultima_consulta.sintomas}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
   const renderHistoriasClinicas = () => {
     return (
@@ -1762,7 +2117,7 @@ const HospitalManagementSystem = () => {
     );
   };
 
-const renderDashboardDoctor = () => {
+  const renderDashboardDoctor = () => {
     if (!user || (user.rol !== 'doctor' && user.rol !== 'enfermero')) {
       return null;
     }
@@ -2317,9 +2672,12 @@ const renderDashboardDoctor = () => {
                 <p>
                   <span className="font-semibold">P. Activo:</span> {medicamento.principio_activo}
                 </p>
-                <p>
-                  <span className="font-semibold">Precio:</span> ${medicamento.precio}
-                </p>
+                {medicamento.precio > 0 && (
+                  <p>
+                    <span className="font-semibold">Precio:</span> ${medicamento.precio}
+                  </p>
+                )}
+                
               </div>
 
               {medicamento.descripcion && (
@@ -2521,28 +2879,31 @@ const renderDashboardDoctor = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {user?.rol === 'doctor' || user?.rol === 'enfermero' ? (
-          <>
-            {activeView === 'dashboard' && user?.rol === 'doctor' && renderDashboardDoctor()}
-            {activeView === 'dashboard' && user?.rol === 'enfermero' && renderDashboardDoctor()}
-            {activeView === 'consulta' && user?.rol === 'doctor' && renderConsulta()}
-            {activeView === 'hospitalizacion' && renderHospitalizacion()}
-            {activeView === 'medicamentos' && renderMedicamentos()}
-            {activeView === 'pacientes' && renderPacientes()}
-            {activeView === 'citas' && renderCitas()}
-          </>
-        ) : (
-          <>
-            {activeView === 'dashboard' && renderDashboard()}
-            {activeView === 'pacientes' && renderPacientes()}
-            {activeView === 'perfil-paciente' && renderPerfilPaciente()}
-            {activeView === 'citas' && renderCitas()}
-            {activeView === 'doctores' && renderDoctores()}
-            {activeView === 'habitaciones' && renderHabitaciones()}
-            {activeView === 'historias' && renderHistoriasClinicas()}
-          </>
-        )}
-      </main>
+  {user?.rol === 'doctor' || user?.rol === 'enfermero' ? (
+    <>
+      {activeView === 'dashboard' && user?.rol === 'doctor' && renderDashboardDoctor()}
+      {activeView === 'dashboard' && user?.rol === 'enfermero' && renderDashboardDoctor()}
+      {activeView === 'consulta' && user?.rol === 'doctor' && renderConsulta()}
+      {activeView === 'hospitalizacion' && renderHospitalizacion()}
+      {activeView === 'medicamentos' && renderMedicamentos()}
+      {activeView === 'pacientes' && renderPacientes()}
+      {activeView === 'perfil-paciente' && renderPerfilPaciente()}
+      {activeView === 'citas' && renderCitas()}
+      {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
+    </>
+  ) : (
+    <>
+      {activeView === 'dashboard' && renderDashboard()}
+      {activeView === 'pacientes' && renderPacientes()}
+      {activeView === 'perfil-paciente' && renderPerfilPaciente()}
+      {activeView === 'citas' && renderCitas()}
+      {activeView === 'doctores' && renderDoctores()}
+      {activeView === 'habitaciones' && renderHabitaciones()}
+      {activeView === 'detalle-habitacion' && renderDetalleHabitacion()} 
+      {activeView === 'historias' && renderHistoriasClinicas()}
+    </>
+  )}
+</main>
     </div>
   );
 };

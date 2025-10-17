@@ -72,6 +72,34 @@ class HistoriaClinicaSerializer(serializers.ModelSerializer):
 
 class HabitacionSerializer(serializers.ModelSerializer):
     departamento_info = DepartamentoSerializer(source='departamento', read_only=True)
+    capacidad = serializers.SerializerMethodField()
+    ocupadas = serializers.SerializerMethodField()
+    disponible = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Habitacion
+        fields = '__all__'
+    
+    def get_capacidad(self, obj):
+        capacidades = {
+            'individual': 1,
+            'doble': 2,
+            'triple': 3,
+            'uci': 1,
+            'emergencia': 1,
+        }
+        return capacidades.get(obj.tipo, 1)
+    
+    def get_ocupadas(self, obj):
+        return Hospitalizacion.objects.filter(
+            habitacion=obj,
+            estado='activa'
+        ).count()
+    
+    def get_disponible(self, obj):
+        capacidad = self.get_capacidad(obj)
+        ocupadas = self.get_ocupadas(obj)
+        return ocupadas < capacidad
     
     class Meta:
         model = Habitacion

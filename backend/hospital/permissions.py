@@ -22,6 +22,7 @@ class CanViewOwnCitas(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.rol in ['doctor', 'admin', 'enfermero']
 
+
 class CanViewDepartmentPacientes(permissions.BasePermission):
     """Ver pacientes del departamento"""
     def has_permission(self, request, view):

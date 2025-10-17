@@ -23,7 +23,7 @@ class PacienteViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         # Admin ve todo
-        if user.rol == 'admin':
+        if user.rol == 'admin'or user.rol == 'medico':
             return Paciente.objects.all()
         
         # Doctor y Enfermero ven pacientes de su departamento
@@ -48,30 +48,49 @@ class PacienteViewSet(viewsets.ModelViewSet):
         paciente = self.get_object()
         
         # Verificar permisos
-        if request.user.rol == 'paciente':
-            if not request.user.paciente_asociado or request.user.paciente_asociado.id != paciente.id:
+        user = request.user
+        if user.rol == 'paciente':
+            if not user.paciente_asociado or user.paciente_asociado.id != paciente.id:
                 return Response({'error': 'No tiene permiso para ver este historial'}, 
-                              status=status.HTTP_403_FORBIDDEN)
+                            status=status.HTTP_403_FORBIDDEN)
+        elif user.rol == 'doctor':
+            # Doctor solo puede ver historias de sus pacientes
+            doctor = Doctor.objects.filter(usuario=user).first()
+            if not doctor:
+                return Response({'error': 'No es un doctor'}, status=status.HTTP_403_FORBIDDEN)
+            # Verificar que tiene cita con este paciente
+            tiene_cita = Cita.objects.filter(doctor=doctor, paciente=paciente).exists()
+            if not tiene_cita:
+                return Response({'error': 'No tiene citas con este paciente'}, 
+                            status=status.HTTP_403_FORBIDDEN)
         
         historias = HistoriaClinica.objects.filter(paciente=paciente)
         serializer = HistoriaClinicaSerializer(historias, many=True)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['get'])
     def citas(self, request, pk=None):
         paciente = self.get_object()
         
         # Verificar permisos
-        if request.user.rol == 'paciente':
-            if not request.user.paciente_asociado or request.user.paciente_asociado.id != paciente.id:
+        user = request.user
+        if user.rol == 'paciente':
+            if not user.paciente_asociado or user.paciente_asociado.id != paciente.id:
                 return Response({'error': 'No tiene permiso para ver estas citas'}, 
-                              status=status.HTTP_403_FORBIDDEN)
+                            status=status.HTTP_403_FORBIDDEN)
+        elif user.rol == 'doctor':
+            # Doctor solo puede ver citas de sus pacientes
+            doctor = Doctor.objects.filter(usuario=user).first()
+            if not doctor:
+                return Response({'error': 'No es un doctor'}, status=status.HTTP_403_FORBIDDEN)
+            tiene_cita = Cita.objects.filter(doctor=doctor, paciente=paciente).exists()
+            if not tiene_cita:
+                return Response({'error': 'No tiene citas con este paciente'}, 
+                            status=status.HTTP_403_FORBIDDEN)
         
         citas = Cita.objects.filter(paciente=paciente)
         serializer = CitaSerializer(citas, many=True)
         return Response(serializer.data)
-
-
 
 class DoctorViewSet(viewsets.ModelViewSet):
     queryset = Doctor.objects.select_related('usuario', 'departamento').all()
@@ -101,7 +120,7 @@ class CitaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['fecha_hora']
     
     def get_queryset(self):
-        """Filtrar citas según el rol"""
+        #Filtrar citas según el rol
         user = self.request.user
         
         # Admin ve todo
@@ -126,14 +145,14 @@ class CitaViewSet(viewsets.ModelViewSet):
         return Cita.objects.none()
     
     def get_permissions(self):
-        """Solo admin y doctor pueden crear citas"""
+        #Solo admin y doctor pueden crear citas
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsDoctorOrAdmin()]
         return [IsAuthenticated()]
     
     @action(detail=False, methods=['get'])
     def mis_citas(self, request):
-        """Mis citas (solo para doctores)"""
+        #Mis citas (solo para doctores)
         if request.user.rol != 'doctor':
             return Response(
                 {'error': 'Solo doctores pueden usar este endpoint'},
@@ -188,7 +207,7 @@ class HistoriaClinicaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['fecha']
     
     def get_queryset(self):
-        """Filtrar historias según el rol"""
+        #Filtrar historias según el rol
         user = self.request.user
         
         # Admin, Doctor, Enfermero ven todo
@@ -202,7 +221,7 @@ class HistoriaClinicaViewSet(viewsets.ModelViewSet):
         return HistoriaClinica.objects.none()
     
     def get_permissions(self):
-        """Solo doctores pueden crear/editar historias clínicas"""
+        #Solo doctores pueden crear/editar historias clínicas
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsDoctorOrAdmin()]
         return [IsAuthenticated()]
@@ -227,7 +246,64 @@ class HabitacionViewSet(viewsets.ModelViewSet):
     serializer_class = HabitacionSerializer
     permission_classes = [IsAuthenticated, IsEnfermeroOrAbove]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['tipo', 'piso', 'departamento', 'ocupada', 'activa']
+    filterset_fields = ['tipo', 'piso', 'departamento', 'activa']
+    
+    def get_queryset(self):
+        """Mostrar solo habitaciones activas"""
+        return Habitacion.objects.filter(activa=True)
+    
+    @action(detail=True, methods=['get'])
+    def disponibles(self, request):
+        habitaciones = Habitacion.objects.filter(ocupada=False, activa=True)
+        serializer = self.get_serializer(habitaciones, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def pacientes(self, request, pk=None):
+        """Obtener pacientes hospitalizados en esta habitación"""
+        habitacion = self.get_object()
+        hospitalizaciones = Hospitalizacion.objects.filter(
+            habitacion=habitacion,
+            estado='activa'
+        ).select_related('paciente', 'doctor_responsable')
+        
+        data = []
+        for hosp in hospitalizaciones:
+            # Obtener última historia clínica del paciente
+            ultima_historia = HistoriaClinica.objects.filter(
+                paciente=hosp.paciente
+            ).order_by('-fecha').first()
+            
+            data.append({
+                'id': hosp.id,
+                'paciente': {
+                    'id': hosp.paciente.id,
+                    'nombre': hosp.paciente.nombre,
+                    'apellidos': hosp.paciente.apellidos,
+                    'numero_historia': hosp.paciente.numero_historia,
+                    'tipo_sangre': hosp.paciente.tipo_sangre,
+                    'alergias': hosp.paciente.alergias,
+                    'telefono': hosp.paciente.telefono,
+                },
+                'hospitalizacion': {
+                    'motivo': hosp.motivo,
+                    'diagnostico': hosp.diagnostico,
+                    'fecha_ingreso': hosp.fecha_ingreso,
+                    'dias': (datetime.now().replace(tzinfo=None) - hosp.fecha_ingreso.replace(tzinfo=None)).days,
+                },
+                'ultima_consulta': {
+                    'diagnostico': ultima_historia.diagnostico if ultima_historia else 'N/A',
+                    'sintomas': ultima_historia.sintomas if ultima_historia else 'N/A',
+                    'tratamiento': ultima_historia.tratamiento if ultima_historia else 'N/A',
+                    'fecha': ultima_historia.fecha if ultima_historia else None,
+                } if ultima_historia else None,
+                'doctor': {
+                    'nombre': hosp.doctor_responsable.usuario.get_full_name(),
+                    'especialidad': hosp.doctor_responsable.especialidad,
+                }
+            })
+        
+        return Response(data)
     
     @action(detail=False, methods=['get'])
     def disponibles(self, request):

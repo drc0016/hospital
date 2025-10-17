@@ -1,8 +1,8 @@
-from django.db import models
 
 # Create your models here.
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 
 class Usuario(AbstractUser):
     ROLES = (
@@ -154,10 +154,11 @@ class Prescripcion(models.Model):
 
 class Habitacion(models.Model):
     TIPOS = (
-        ('individual', 'Individual'),
-        ('doble', 'Doble'),
-        ('uci', 'UCI'),
-        ('emergencia', 'Emergencia'),
+        ('individual', 'Individual (1 cama)'),
+        ('doble', 'Doble (2 camas)'),
+        ('triple', 'Triple (3 camas)'),
+        ('uci', 'UCI (1 cama)'),
+        ('emergencia', 'Emergencia (1 cama)'),
     )
     
     numero = models.CharField(max_length=10, unique=True)
@@ -185,6 +186,38 @@ class Hospitalizacion(models.Model):
         ('activa', 'Activa'),
         ('alta', 'Alta'),
     ), default='activa')
+    def save(self, *args, **kwargs):
+        # Solo validar si es una nueva hospitalización o si cambia la habitación
+        if not self.pk or self.habitacion != Hospitalizacion.objects.get(pk=self.pk).habitacion:
+            # Obtener capacidad de la habitación
+            capacidad_habitacion = {
+                'individual': 1,
+                'doble': 2,
+                'triple': 3,
+                'uci': 1,
+                'emergencia': 1,
+            }.get(self.habitacion.tipo, 1)
+            
+            # Contar hospitalizaciones activas en esta habitación
+            hospitalizaciones_activas = Hospitalizacion.objects.filter(
+                habitacion=self.habitacion,
+                estado='activa'
+            ).exclude(pk=self.pk if self.pk else None).count()
+            
+            # Validar capacidad
+            if hospitalizaciones_activas >= capacidad_habitacion:
+                raise ValidationError(
+                    f'La habitación {self.habitacion.numero} está llena. '
+                    f'Capacidad: {capacidad_habitacion}, Ocupadas: {hospitalizaciones_activas}'
+                )
+        
+        super().save(*args, **kwargs)
+
+    class Meta:
+        db_table = 'hospitalizaciones'
+        verbose_name = 'Hospitalización'
+        verbose_name_plural = 'Hospitalizaciones'
+    
     
     class Meta:
         db_table = 'hospitalizaciones'
