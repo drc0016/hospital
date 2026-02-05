@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
@@ -24,19 +24,12 @@ class PacienteViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         # Admin ve todo
-        if user.rol == 'admin'or user.rol == 'medico':
+        if user.rol == 'admin' or user.rol == 'doctor':  
             return Paciente.objects.all()
         
         # Doctor y Enfermero ven pacientes de su departamento
-        if user.rol in ['doctor', 'enfermero']:
+        if user.rol in ['enfermero']:
             # Obtener departamento del doctor/enfermero
-            if user.rol == 'doctor':
-                doctor = Doctor.objects.filter(usuario=user).first()
-                if doctor and doctor.departamento:
-                    # Ver pacientes con citas en su departamento
-                    return Paciente.objects.filter(
-                        cita__doctor__departamento=doctor.departamento
-                    ).distinct()
             return Paciente.objects.all()
         
         # Paciente solo ve sus propios datos
@@ -94,6 +87,7 @@ class PacienteViewSet(viewsets.ModelViewSet):
         serializer = CitaSerializer(citas, many=True)
         return Response(serializer.data)
 
+
 class DoctorViewSet(viewsets.ModelViewSet):
     queryset = Doctor.objects.select_related('usuario', 'departamento').all()
     serializer_class = DoctorSerializer
@@ -113,6 +107,7 @@ class DoctorViewSet(viewsets.ModelViewSet):
         serializer = CitaSerializer(citas, many=True)
         return Response(serializer.data)
 
+
 class CitaViewSet(viewsets.ModelViewSet):
     queryset = Cita.objects.select_related('paciente', 'doctor').all()
     serializer_class = CitaSerializer
@@ -122,7 +117,7 @@ class CitaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['fecha_hora']
     
     def get_queryset(self):
-        #Filtrar citas según el rol
+        """Filtrar citas según el rol"""
         user = self.request.user
         
         # Admin ve todo
@@ -147,14 +142,14 @@ class CitaViewSet(viewsets.ModelViewSet):
         return Cita.objects.none()
     
     def get_permissions(self):
-        #Solo admin y doctor pueden crear citas
+        """Solo admin y doctor pueden crear citas"""
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsDoctorOrAdmin()]
         return [IsAuthenticated()]
     
     @action(detail=False, methods=['get'])
     def mis_citas(self, request):
-        #Mis citas (solo para doctores)
+        """Mis citas (solo para doctores)"""
         if request.user.rol != 'doctor':
             return Response(
                 {'error': 'Solo doctores pueden usar este endpoint'},
@@ -163,7 +158,7 @@ class CitaViewSet(viewsets.ModelViewSet):
         
         doctor = Doctor.objects.filter(usuario=request.user).first()
         if not doctor:
-            return Response([], safe=False)
+            return Response([])
         
         fecha = request.query_params.get('fecha', datetime.now().date())
         citas = Cita.objects.filter(
@@ -198,8 +193,8 @@ class CitaViewSet(viewsets.ModelViewSet):
         citas = self.get_queryset().filter(fecha_hora__date=hoy)
         serializer = self.get_serializer(citas, many=True)
         return Response(serializer.data)
-    
-    
+
+
 class HistoriaClinicaViewSet(viewsets.ModelViewSet):
     queryset = HistoriaClinica.objects.select_related('paciente', 'doctor').all()
     serializer_class = HistoriaClinicaSerializer
@@ -209,7 +204,7 @@ class HistoriaClinicaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['fecha']
     
     def get_queryset(self):
-        #Filtrar historias según el rol
+        """Filtrar historias según el rol"""
         user = self.request.user
         
         # Admin, Doctor, Enfermero ven todo
@@ -223,10 +218,11 @@ class HistoriaClinicaViewSet(viewsets.ModelViewSet):
         return HistoriaClinica.objects.none()
     
     def get_permissions(self):
-        #Solo doctores pueden crear/editar historias clínicas
+        """Solo doctores pueden crear/editar historias clínicas"""
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsDoctorOrAdmin()]
         return [IsAuthenticated()]
+
 
 class MedicamentoViewSet(viewsets.ModelViewSet):
     queryset = Medicamento.objects.all()
@@ -243,6 +239,7 @@ class MedicamentoViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(medicamentos, many=True)
         return Response(serializer.data)
 
+
 class HabitacionViewSet(viewsets.ModelViewSet):
     queryset = Habitacion.objects.select_related('departamento').all()
     serializer_class = HabitacionSerializer
@@ -254,8 +251,9 @@ class HabitacionViewSet(viewsets.ModelViewSet):
         """Mostrar solo habitaciones activas"""
         return Habitacion.objects.filter(activa=True)
     
-    @action(detail=True, methods=['get'])
+    @action(detail=False, methods=['get'])
     def disponibles(self, request):
+        """Listar habitaciones disponibles"""
         habitaciones = Habitacion.objects.filter(ocupada=False, activa=True)
         serializer = self.get_serializer(habitaciones, many=True)
         return Response(serializer.data)
@@ -306,12 +304,7 @@ class HabitacionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(data)
-    
-    @action(detail=False, methods=['get'])
-    def disponibles(self, request):
-        habitaciones = Habitacion.objects.filter(ocupada=False, activa=True)
-        serializer = self.get_serializer(habitaciones, many=True)
-        return Response(serializer.data)
+
 
 class HospitalizacionViewSet(viewsets.ModelViewSet):
     queryset = Hospitalizacion.objects.select_related(
@@ -335,7 +328,7 @@ class HospitalizacionViewSet(viewsets.ModelViewSet):
         if user.rol == 'doctor':
             try:
                 doctor = Doctor.objects.get(usuario=user)
-                print(f"👨‍⚕️ Doctor encontrado: Dr. {doctor.usuario.get_full_name() or doctor.usuario.username}")  # ⬅️ CAMBIO AQUÍ
+                print(f"👨‍⚕️ Doctor encontrado: Dr. {doctor.usuario.get_full_name() or doctor.usuario.username}")
                 print(f"🏥 Departamento: {doctor.departamento}")
                 
                 hospitalizaciones = Hospitalizacion.objects.filter(
@@ -350,37 +343,47 @@ class HospitalizacionViewSet(viewsets.ModelViewSet):
                 print(f"❌ Doctor no encontrado")
                 return Hospitalizacion.objects.none()
         
-        def get_permissions(self):
-            """Solo doctores pueden gestionar hospitalizaciones"""
-            if self.action in ['create', 'update', 'partial_update', 'destroy']:
-                return [IsAuthenticated(), IsDoctorOrAdmin()]
-            return [IsAuthenticated()]
+        # Enfermero ve todo
+        if user.rol == 'enfermero':
+            return Hospitalizacion.objects.all()
         
-        def perform_create(self, serializer):
-            hospitalizacion = serializer.save()
-            habitacion = hospitalizacion.habitacion
-            habitacion.ocupada = True
-            habitacion.save()
+        return Hospitalizacion.objects.none()
+    
+    def get_permissions(self):
+        """Solo doctores pueden gestionar hospitalizaciones"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsDoctorOrAdmin()]
+        return [IsAuthenticated()]
+    
+    def perform_create(self, serializer):
+        """Marcar habitación como ocupada al crear hospitalización"""
+        hospitalizacion = serializer.save()
+        habitacion = hospitalizacion.habitacion
+        habitacion.ocupada = True
+        habitacion.save()
+    
+    @action(detail=True, methods=['post'])
+    def dar_alta(self, request, pk=None):
+        """Dar de alta a un paciente hospitalizado"""
+        if request.user.rol not in ['doctor', 'admin']:
+            return Response(
+                {'error': 'No tiene permiso para dar altas'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         
-        @action(detail=True, methods=['post'])
-        def dar_alta(self, request, pk=None):
-            if request.user.rol not in ['doctor', 'admin']:
-                return Response(
-                    {'error': 'No tiene permiso para dar altas'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            
-            hospitalizacion = self.get_object()
-            hospitalizacion.fecha_alta = datetime.now()
-            hospitalizacion.estado = 'alta'
-            hospitalizacion.save()
-            
-            habitacion = hospitalizacion.habitacion
-            habitacion.ocupada = False
-            habitacion.save()
-            
-            return Response({'status': 'Alta registrada'})
+        hospitalizacion = self.get_object()
+        hospitalizacion.fecha_alta = datetime.now()
+        hospitalizacion.estado = 'alta'
+        hospitalizacion.save()
         
+        # Liberar habitación
+        habitacion = hospitalizacion.habitacion
+        habitacion.ocupada = False
+        habitacion.save()
+        
+        return Response({'status': 'Alta registrada'})
+
+
 class PrescripcionViewSet(viewsets.ModelViewSet):
     queryset = Prescripcion.objects.all()
     serializer_class = PrescripcionSerializer
@@ -426,6 +429,7 @@ class PrescripcionViewSet(viewsets.ModelViewSet):
         except:
             return Response({'error': 'Error al verificar alergias'}, status=400)
 
+
 class DashboardViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     
@@ -466,8 +470,7 @@ class DashboardViewSet(viewsets.ViewSet):
             stats = {}
         
         return Response(stats)
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
