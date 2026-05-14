@@ -217,11 +217,7 @@ class Hospitalizacion(models.Model):
         db_table = 'hospitalizaciones'
         verbose_name = 'Hospitalización'
         verbose_name_plural = 'Hospitalizaciones'
-    
-    
-    class Meta:
-        db_table = 'hospitalizaciones'
         ordering = ['-fecha_ingreso']
-    
+        
     def __str__(self):
         return f"Hospitalización {self.paciente} - Hab. {self.habitacion.numero}"
