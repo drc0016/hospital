@@ -59,6 +59,26 @@ const HospitalManagementSystem = () => {
     paciente: '', doctor: '', fecha_hora: '', motivo: ''
   });
 
+  const obtenerFechaHoy = () => {
+    return new Date().toLocaleDateString('es-ES', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const formatearFecha = (fecha) => {
+    return new Date(fecha).toLocaleDateString('es-ES', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -199,34 +219,34 @@ const HospitalManagementSystem = () => {
 
 
 const fetchPacientesHabitacion = async (habitacionId) => {
-  console.log('🔍 INICIO - Habitación ID:', habitacionId);
-  console.log('🔑 Token existe:', !!token);
-  
+  if (!habitacionId) {
+    console.error('❌ No se proporcionó habitacionId');
+    return;
+  }
+
   try {
     const url = `${API_URL}/habitaciones/${habitacionId}/pacientes/`;
-    console.log('📡 URL completa:', url);
-    
     const response = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     });
     
-    console.log('📥 Response status:', response.status);
-    console.log('📥 Response OK:', response.ok);
-    
     if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status}`);
+      throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
     }
     
     const data = await response.json();
-    console.log('✅ Datos recibidos:', data);
-    console.log('📊 Cantidad de pacientes:', data.length);
     
+    // Asegurar que siempre sea un array
     const pacientesArray = Array.isArray(data) ? data : [];
-    console.log('🔄 Actualizando estado con:', pacientesArray);
     setPacientesHabitacion(pacientesArray);
+    
+    console.log(`✅ ${pacientesArray.length} pacientes cargados para habitación ${habitacionId}`);
   } catch (error) {
-    console.error('❌ ERROR COMPLETO:', error);
-    alert(`Error al cargar pacientes: ${error.message}`);
+    console.error('❌ Error al cargar pacientes:', error.message);
+    alert(`No se pudieron cargar los pacientes: ${error.message}`);
     setPacientesHabitacion([]);
   }
 };
@@ -1165,11 +1185,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                   </p>
                   <p className="flex items-center">
                     <span className="font-semibold mr-2">Fecha de Nacimiento:</span>
-                    {new Date(selectedPaciente.fecha_nacimiento).toLocaleDateString('es-ES', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+                    {formatearFecha(selectedPaciente.fecha_nacimiento)}
                   </p>
                 </div>
               </div>
@@ -1278,7 +1294,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <p className="text-sm text-gray-600 mb-1">Fecha de Registro</p>
                     <p className="text-lg font-semibold text-gray-800">
-                      {new Date(selectedPaciente.fecha_registro).toLocaleDateString('es-ES')}
+                      {formatearFecha(selectedPaciente.fecha_registro)}
                     </p>
                   </div>
                 </div>
@@ -1321,13 +1337,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                       <div className="flex justify-between items-start mb-4">
                         <div>
                           <p className="text-sm text-gray-600">
-                            {new Date(historia.fecha).toLocaleDateString('es-ES', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatearFecha(historia.fecha)}
                           </p>
                           <p className="text-sm font-medium text-gray-700 mt-1">
                             Atendido por: {historia.doctor_info?.nombre_completo || 'Doctor'}
@@ -1411,7 +1421,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                           <div className="flex items-center">
                             <Calendar className="text-blue-600 mr-2" size={20} />
                             <span className="text-sm font-semibold text-gray-700">
-                              {new Date(cita.fecha_hora).toLocaleDateString('es-ES')}
+                              {formatearFecha(cita.fecha_hora)}
                             </span>
                           </div>
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -1574,11 +1584,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                     <Calendar className="text-blue-600 mr-2" size={20} />
                     <div>
                       <span className="text-sm font-semibold text-gray-700 block">
-                        {new Date(cita.fecha_hora).toLocaleDateString('es-ES', { 
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short'
-                        })}
+                        {formatearFecha(cita.fecha_hora)}
                       </span>
                       <span className="text-lg font-bold text-gray-800">
                         {new Date(cita.fecha_hora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
@@ -1907,12 +1913,10 @@ const fetchPacientesHabitacion = async (habitacionId) => {
       </div>
     );
   };
-  const renderDetalleHabitacion = () => {
-  console.log('🎨 RENDER - pacientesHabitacion:', pacientesHabitacion);
-  console.log('🎨 RENDER - selectedHabitacion:', selectedHabitacion);
-  
+
+
+const renderDetalleHabitacion = () => {
   if (!selectedHabitacion) {
-    console.log('⚠️ No hay habitación seleccionada');
     return null;
   }
 
@@ -1924,14 +1928,15 @@ const fetchPacientesHabitacion = async (habitacionId) => {
     'emergencia': 1,
   }[selectedHabitacion.tipo] || 1;
 
-  console.log('📋 Capacidad:', capacidad);
-  console.log('📋 Pacientes en estado:', pacientesHabitacion);
-  console.log('📋 Longitud array:', pacientesHabitacion?.length);
-
   return (
     <div className="space-y-6">
+      {/* Botón de regreso CORREGIDO */}
       <button
-        onClick={() => setActiveView('habitaciones')}
+        onClick={() => {
+          setSelectedHabitacion(null);
+          setPacientesHabitacion([]); // ✅ Limpiar estado
+          setActiveView('habitaciones');
+        }}
         className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
       >
         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1940,6 +1945,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
         Volver a Habitaciones
       </button>
 
+      {/* Cabecera */}
       <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
@@ -1953,6 +1959,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
         </div>
       </div>
 
+      {/* Info de la habitación */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl shadow-md p-4">
           <p className="text-sm text-gray-600">Piso</p>
@@ -1960,10 +1967,13 @@ const fetchPacientesHabitacion = async (habitacionId) => {
         </div>
         <div className="bg-white rounded-xl shadow-md p-4">
           <p className="text-sm text-gray-600">Departamento</p>
-          <p className="text-lg font-bold text-gray-800">{selectedHabitacion.departamento_info?.nombre}</p>
+          <p className="text-lg font-bold text-gray-800">
+            {selectedHabitacion.departamento_info?.nombre || 'N/A'}
+          </p>
         </div>
       </div>
 
+      {/* Lista de pacientes */}
       {!pacientesHabitacion || pacientesHabitacion.length === 0 ? (
         <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
           <Bed className="text-gray-400 mx-auto mb-4" size={48} />
@@ -1971,78 +1981,98 @@ const fetchPacientesHabitacion = async (habitacionId) => {
         </div>
       ) : (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800">Pacientes Hospitalizados</h2>
-          {pacientesHabitacion.map((item, index) => { 
-            console.log(`👤 Renderizando paciente ${index}:`, item); 
-            return ( 
-              <div key={item.id || index} className="bg-white rounded-xl shadow-md p-6">  
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-800">
-                      {item.paciente?.nombre || 'Sin nombre'} {item.paciente?.apellidos || ''}  
-                    </h3>
-                    <p className="text-sm text-gray-600">Nº Historia: {item.paciente?.numero_historia || 'N/A'}</p> 
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-blue-600">{item.hospitalizacion?.dias || 0}</p> 
-                    <p className="text-xs text-gray-600">días hospitalizados</p>
-                  </div>
+          <h2 className="text-xl font-bold text-gray-800">
+            Pacientes Hospitalizados ({pacientesHabitacion.length})
+          </h2>
+          
+          {pacientesHabitacion.map((item, index) => (
+            <div key={item.id || index} className="bg-white rounded-xl shadow-md p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">
+                    {item.paciente.nombre} {item.paciente.apellidos}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Nº Historia: {item.paciente.numero_historia}
+                  </p>
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 pb-4 border-b">
-                  <div>
-                    <p className="text-xs text-gray-600">Tipo de Sangre</p>
-                    <p className="font-bold text-gray-800">{item.paciente?.tipo_sangre || 'N/A'}</p> 
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Teléfono</p>
-                    <p className="font-bold text-gray-800">{item.paciente?.telefono || 'N/A'}</p>  
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Doctor</p>
-                    <p className="font-bold text-gray-800">{item.doctor?.nombre || 'N/A'}</p>  
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Especialidad</p>
-                    <p className="font-bold text-gray-800">{item.doctor?.especialidad || 'N/A'}</p> 
-                  </div>
-                </div>
-
-                {item.paciente?.alergias && ( 
-                  <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded">
-                    <p className="text-xs font-bold text-red-700 mb-1">⚠️ ALERGIAS</p>
-                    <p className="text-sm text-red-800 font-semibold">{item.paciente.alergias}</p>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
-                    <p className="text-xs font-bold text-blue-700 mb-1">MOTIVO DE HOSPITALIZACIÓN</p>
-                    <p className="text-sm text-gray-800">{item.hospitalizacion?.motivo || 'No especificado'}</p> 
-                  </div>
-
-                  <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded">
-                    <p className="text-xs font-bold text-green-700 mb-1">DIAGNÓSTICO</p>
-                    <p className="text-sm text-gray-800">{item.hospitalizacion?.diagnostico || 'No especificado'}</p>  
-                  </div>
-
-                  {item.ultima_consulta && (
-                    <>
-                      <div className="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
-                        <p className="text-xs font-bold text-yellow-700 mb-1">TRATAMIENTO</p>
-                        <p className="text-sm text-gray-800">{item.ultima_consulta.tratamiento}</p>
-                      </div>
-
-                      <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded">
-                        <p className="text-xs font-bold text-purple-700 mb-1">SÍNTOMAS ACTUALES</p>
-                        <p className="text-sm text-gray-800">{item.ultima_consulta.sintomas}</p>
-                      </div>
-                    </>
-                  )}
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-blue-600">
+                    {item.hospitalizacion.dias}
+                  </p>
+                  <p className="text-xs text-gray-600">días hospitalizados</p>
                 </div>
               </div>
-            );
-          })}
+
+              {/* Grid de información */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 pb-4 border-b">
+                <div>
+                  <p className="text-xs text-gray-600">Tipo de Sangre</p>
+                  <p className="font-bold text-gray-800">{item.paciente.tipo_sangre}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Teléfono</p>
+                  <p className="font-bold text-gray-800">{item.paciente.telefono}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Doctor</p>
+                  <p className="font-bold text-gray-800">{item.doctor.nombre}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Especialidad</p>
+                  <p className="font-bold text-gray-800">{item.doctor.especialidad}</p>
+                </div>
+              </div>
+
+              {/* Alerta de alergias */}
+              {item.paciente.alergias && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded">
+                  <p className="text-xs font-bold text-red-700 mb-1">⚠️ ALERGIAS</p>
+                  <p className="text-sm text-red-800 font-semibold">{item.paciente.alergias}</p>
+                </div>
+              )}
+
+              {/* Información médica */}
+              <div className="space-y-3">
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
+                  <p className="text-xs font-bold text-blue-700 mb-1">MOTIVO DE HOSPITALIZACIÓN</p>
+                  <p className="text-sm text-gray-800">{item.hospitalizacion.motivo}</p>
+                </div>
+
+                <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded">
+                  <p className="text-xs font-bold text-green-700 mb-1">DIAGNÓSTICO</p>
+                  <p className="text-sm text-gray-800">{item.hospitalizacion.diagnostico}</p>
+                </div>
+
+                {item.ultima_consulta && (
+                  <>
+                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
+                      <p className="text-xs font-bold text-yellow-700 mb-1">TRATAMIENTO</p>
+                      <p className="text-sm text-gray-800">{item.ultima_consulta.tratamiento}</p>
+                    </div>
+
+                    <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded">
+                      <p className="text-xs font-bold text-purple-700 mb-1">SÍNTOMAS ACTUALES</p>
+                      <p className="text-sm text-gray-800">{item.ultima_consulta.sintomas}</p>
+                    </div>
+
+                    <div className="bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
+                      <p className="text-xs font-bold text-gray-700 mb-1">DIAGNÓSTICO ÚLTIMO</p>
+                      <p className="text-sm text-gray-800">{item.ultima_consulta.diagnostico}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Fecha de ingreso */}
+              <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600">
+                <p>
+                  <span className="font-semibold">Fecha de ingreso:</span>{' '}
+                  {formatearFecha(item.hospitalizacion.fecha_ingreso)}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -2076,13 +2106,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                       {historia.paciente_info ? `${historia.paciente_info.nombre} ${historia.paciente_info.apellidos}` : 'Paciente'}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {new Date(historia.fecha).toLocaleDateString('es-ES', { 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {formatearFecha(historia.fecha)}
                     </p>
                   </div>
                   <div className="text-right">
@@ -2161,7 +2185,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
             <div>
               <h3 className="text-lg font-semibold mb-2">Mis Citas de Hoy</h3>
               <p className="text-blue-100 text-sm">
-                {new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {obtenerFechaHoy()}
               </p>
             </div>
             <div className="text-5xl font-bold opacity-30">
@@ -2614,7 +2638,7 @@ const fetchPacientesHabitacion = async (habitacionId) => {
                     <div className="bg-gray-50 p-3 rounded-lg">
                       <p className="text-xs text-gray-600">Fecha Ingreso</p>
                       <p className="text-sm font-semibold text-gray-800">
-                        {new Date(hospitalizacion.fecha_ingreso).toLocaleDateString('es-ES')}
+                        {formatearFecha(hospitalizacion.fecha_ingreso)}
                       </p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg">
