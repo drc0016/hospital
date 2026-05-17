@@ -20,14 +20,20 @@ class HabitacionViewSet(viewsets.ModelViewSet):
     filterset_fields = ['tipo', 'piso', 'departamento', 'activa']
     
     def get_queryset(self):
-        """Mostrar solo habitaciones activas"""
-        return Habitacion.objects.filter(activa=True)
+        return Habitacion.objects.filter(activa=True).exclude(tipo='consulta')
     
     @action(detail=False, methods=['get'])
     def disponibles(self, request):
         """Listar habitaciones disponibles"""
         habitaciones = Habitacion.objects.filter(ocupada=False, activa=True)
         serializer = self.get_serializer(habitaciones, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def consultas(self, request):
+        """Listar solo habitaciones de tipo consulta"""
+        consultas = Habitacion.objects.filter(tipo='consulta', activa=True)
+        serializer = self.get_serializer(consultas, many=True)
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])

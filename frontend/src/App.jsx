@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Stethoscope, Bed, Activity, Clock, Search, Plus, X, User, LogOut, Home, FileText, Phone } from 'lucide-react';
-
+import { Calendar, Users, Stethoscope, Bed, Activity, Clock, Search, Plus, X, User, LogOut, Home, FileText, Phone, Menu } from 'lucide-react';
+import './App.css';
 
 const API_URL = 'http://localhost:8000/api';
+
+const badgeEstado = (estado) => {
+  const map = { programada: 'badge-blue', en_curso: 'badge-yellow', completada: 'badge-green', cancelada: 'badge-red' };
+  return map[estado] || 'badge-gray';
+};
 
 const HospitalManagementSystem = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -22,62 +27,32 @@ const HospitalManagementSystem = () => {
   const [activeTab, setActiveTab] = useState('info');
   const [selectedHabitacion, setSelectedHabitacion] = useState(null);
   const [pacientesHabitacion, setPacientesHabitacion] = useState([]);
-
-  // AGREGAR DESPUÉS DE LOS ESTADOS EXISTENTES
+  const [navOpen, setNavOpen] = useState(false);
   const [misDoctorData, setMisDoctorData] = useState(null);
   const [misCitasHoy, setMisCitasHoy] = useState([]);
   const [citaEnConsulta, setCitaEnConsulta] = useState(null);
-  const [nuevaHistoria, setNuevaHistoria] = useState({
-    sintomas: '',
-    diagnostico: '',
-    tratamiento: '',
-    examenes_solicitados: '',
-    notas_adicionales: ''
-  });
+  const [nuevaHistoria, setNuevaHistoria] = useState({ sintomas: '', diagnostico: '', tratamiento: '', examenes_solicitados: '', notas_adicionales: '' });
   const [prescripciones, setPrescripciones] = useState([]);
-  const [nuevaPrescripcion, setNuevaPrescripcion] = useState({
-    medicamento_id: '',
-    dosis: '',
-    frecuencia: '',
-    duracion: '',
-    instrucciones: ''
-  });
+  const [nuevaPrescripcion, setNuevaPrescripcion] = useState({ medicamento_id: '', dosis: '', frecuencia: '', duracion: '', instrucciones: '' });
   const [medicamentosDisponibles, setMedicamentosDisponibles] = useState([]);
   const [showFormConsulta, setShowFormConsulta] = useState(false);
   const [showFormPrescripcion, setShowFormPrescripcion] = useState(false);
   const [alertaMedicamento, setAlertaMedicamento] = useState(null);
   const [hospitalizacionesActivas, setHospitalizacionesActivas] = useState([]);
-
+  const [departamentos, setDepartamentos] = useState([]);
+  const [showFormDerivacion, setShowFormDerivacion] = useState(false);
+  const [nuevaDerivacion, setNuevaDerivacion] = useState({ departamento: '', fecha_hora: '', motivo: '' });
+  const [misCitas, setMisCitas] = useState([]);
+  const [showModalCitaPaciente, setShowModalCitaPaciente] = useState(false);
+  const [nuevaCitaPaciente, setNuevaCitaPaciente] = useState({ fecha_hora: '', motivo: '' });
   const [loginData, setLoginData] = useState({ username: '', password: '' });
-  
-  const [newPaciente, setNewPaciente] = useState({
-    nombre: '', apellidos: '', fecha_nacimiento: '', genero: 'M',
-    tipo_sangre: 'O+', telefono: '', direccion: '', numero_historia: ''
-  });
+  const [newPaciente, setNewPaciente] = useState({ nombre: '', apellidos: '', fecha_nacimiento: '', genero: 'M', tipo_sangre: 'O+', telefono: '', direccion: '', numero_historia: '' });
+  const [newCita, setNewCita] = useState({ paciente: '', doctor: '', fecha_hora: '', motivo: '' });
 
-  const [newCita, setNewCita] = useState({
-    paciente: '', doctor: '', fecha_hora: '', motivo: ''
-  });
+  const obtenerFechaHoy = () => new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const formatearFecha = (fecha) => new Date(fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  const obtenerFechaHoy = () => {
-    return new Date().toLocaleDateString('es-ES', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
-  const formatearFecha = (fecha) => {
-    return new Date(fecha).toLocaleDateString('es-ES', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
+  const navTo = (view) => { setActiveView(view); setNavOpen(false); };
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -86,549 +61,181 @@ const HospitalManagementSystem = () => {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
       fetchDashboardStats(storedToken);
+      setActiveView('dashboard');
     }
   }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/auth/login/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginData)
-      });
-      
-      if (!response.ok) {
-        alert('Credenciales incorrectas');
-        return;
-      }
-      
+      const response = await fetch(`${API_URL}/auth/login/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(loginData) });
+      if (!response.ok) { alert('Credenciales incorrectas'); return; }
       const data = await response.json();
-      
       if (data.access) {
         setToken(data.access);
         localStorage.setItem('token', data.access);
-        
-        // Obtener información del usuario autenticado
-        try {
-          const userResponse = await fetch(`${API_URL}/auth/user/`, {
-            headers: { 'Authorization': `Bearer ${data.access}` }
-          });
-          
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-            console.log('Usuario autenticado:', userData); // Para debug
-            setUser(userData);
-            localStorage.setItem('user', JSON.stringify(userData));
-            fetchDashboardStats(data.access);
-          } else {
-            console.error('Error al obtener datos del usuario');
-            alert('Error al obtener información del usuario');
-          }
-        } catch (userError) {
-          console.error('Error al obtener usuario:', userError);
-          alert('Error de conexión con el servidor');
+        const userResponse = await fetch(`${API_URL}/auth/user/`, { headers: { 'Authorization': `Bearer ${data.access}` } });
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          setUser(userData);
+          localStorage.setItem('user', JSON.stringify(userData));
+          fetchDashboardStats(data.access);
+          setActiveView('dashboard');
         }
       }
-    } catch (error) {
-      console.error('Error al iniciar sesión:', error);
-      alert('Error al iniciar sesión. Verifica tus credenciales.');
-    }
+    } catch (error) { alert('Error al iniciar sesión.'); }
   };
 
-  const handleLogout = () => {
-    setToken('');
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  };
+  const handleLogout = () => { setToken(''); setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); };
 
   const fetchDashboardStats = async (authToken) => {
     try {
-      const response = await fetch(`${API_URL}/dashboard/estadisticas/`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      const data = await response.json();
-      setStats(data);
-    } catch (error) {
-      console.error('Error al obtener estadísticas:', error);
-    }
+      const response = await fetch(`${API_URL}/dashboard/estadisticas/`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      setStats(await response.json());
+    } catch {}
   };
+
+  const authHeaders = () => ({ 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' });
 
   const cambiarEstadoCita = async (citaId, nuevoEstado) => {
-  try {
-    const response = await fetch(`${API_URL}/citas/${citaId}/cambiar_estado/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ estado: nuevoEstado })
-    });
+    try {
+      const r = await fetch(`${API_URL}/citas/${citaId}/cambiar_estado/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ estado: nuevoEstado }) });
+      if (r.ok) { fetchMisCitasHoy(); fetchCitas(); }
+      else alert('Error al actualizar el estado');
+    } catch { alert('Error al actualizar el estado'); }
+  };
 
-    if (response.ok) {
-      alert('Estado actualizado');
-      fetchMisCitasHoy();
-      fetchCitas();
-    } else {
-      alert('Error al actualizar el estado');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    alert('Error al actualizar el estado');
-  }
-};
-
-  
   const fetchPacienteDetalle = async (pacienteId) => {
-  try {
-    // Obtener datos del paciente
-    const pacienteResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    
-    if (!pacienteResponse.ok) {
-      console.error('Error paciente:', pacienteResponse.status, pacienteResponse.statusText);
-      throw new Error(`Error ${pacienteResponse.status}: ${pacienteResponse.statusText}`);
-    }
-    
-    const pacienteData = await pacienteResponse.json();
-    setSelectedPaciente(pacienteData);
-
-    // Obtener historias clínicas del paciente
-    const historiasResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/historia_clinica/`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const historiasData = await historiasResponse.json();
-    setPacienteHistorias(historiasData);
-
-    // Obtener citas del paciente
-    const citasResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/citas/`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const citasData = await citasResponse.json();
-      setPacienteCitas(citasData);
-
-      // Cambiar vista al perfil
+    try {
+      const pacienteResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!pacienteResponse.ok) throw new Error(`Error ${pacienteResponse.status}`);
+      setSelectedPaciente(await pacienteResponse.json());
+      const historiasR = await fetch(`${API_URL}/pacientes/${pacienteId}/historia_clinica/`, { headers: { 'Authorization': `Bearer ${token}` } });
+      setPacienteHistorias(historiasR.ok ? await historiasR.json() : null);
+      const citasR = await fetch(`${API_URL}/pacientes/${pacienteId}/citas/`, { headers: { 'Authorization': `Bearer ${token}` } });
+      setPacienteCitas(citasR.ok ? await citasR.json() : null);
       setActiveView('perfil-paciente');
-    } catch (error) {
-      console.error('Error detallado:', error);
-      alert('Error al cargar los datos: ' + error.message);
-    }
+    } catch (error) { alert('Error al cargar los datos: ' + error.message); }
   };
 
-
-const fetchPacientesHabitacion = async (habitacionId) => {
-  if (!habitacionId) {
-    console.error('❌ No se proporcionó habitacionId');
-    return;
-  }
-
-  try {
-    const url = `${API_URL}/habitaciones/${habitacionId}/pacientes/`;
-    const response = await fetch(url, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // Asegurar que siempre sea un array
-    const pacientesArray = Array.isArray(data) ? data : [];
-    setPacientesHabitacion(pacientesArray);
-    
-    console.log(`✅ ${pacientesArray.length} pacientes cargados para habitación ${habitacionId}`);
-  } catch (error) {
-    console.error('❌ Error al cargar pacientes:', error.message);
-    alert(`No se pudieron cargar los pacientes: ${error.message}`);
-    setPacientesHabitacion([]);
-  }
-};
-
-  const fetchPacientes = async () => {
+  const fetchPacientesHabitacion = async (habitacionId) => {
+    if (!habitacionId) return;
     try {
-      const response = await fetch(`${API_URL}/pacientes/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setPacientes(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener pacientes:', error);
-    }
+      const r = await fetch(`${API_URL}/habitaciones/${habitacionId}/pacientes/`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`Error HTTP: ${r.status}`);
+      const data = await r.json();
+      setPacientesHabitacion(Array.isArray(data) ? data : []);
+    } catch (error) { alert(`No se pudieron cargar los pacientes: ${error.message}`); setPacientesHabitacion([]); }
   };
 
-  const fetchHospitalizaciones = async () => {
+  const fetchPacientes = async () => { try { const r = await fetch(`${API_URL}/pacientes/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setPacientes(d.results || d); } catch {} };
+  const fetchHospitalizaciones = async () => { try { const r = await fetch(`${API_URL}/hospitalizaciones/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setHospitalizacionesActivas(d.results || d); } catch {} };
+  const fetchCitas = async () => { try { const r = await fetch(`${API_URL}/citas/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setCitas(d.results || d); } catch {} };
+  const fetchDoctores = async () => { try { const r = await fetch(`${API_URL}/doctores/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setDoctores(d.results || d); } catch {} };
+  const fetchHabitaciones = async () => { try { const r = await fetch(`${API_URL}/habitaciones/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setHabitaciones(d.results || d); } catch {} };
+  const fetchHistoriasClinicas = async () => { try { const r = await fetch(`${API_URL}/historias-clinicas/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setHistorias(d.results || d); } catch {} };
+  const fetchMisDatos = async () => { try { if (user.rol === 'doctor') { const r = await fetch(`${API_URL}/doctores/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); const docs = d.results || d; const miDoc = docs.find(d => d.usuario_info?.username === user.username); if (miDoc) setMisDoctorData(miDoc); } } catch {} };
+  const fetchMisCitasHoy = async () => { if (user?.rol !== 'doctor') return; try { const r = await fetch(`${API_URL}/citas/mis_citas/?fecha=${new Date().toISOString().split('T')[0]}`, { headers: { 'Authorization': `Bearer ${token}` } }); setMisCitasHoy(await r.json()); } catch {} };
+  const fetchMedicamentos = async () => { try { const r = await fetch(`${API_URL}/medicamentos/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setMedicamentosDisponibles(d.results || d); } catch {} };
+  const fetchDepartamentos = async () => { try { const r = await fetch(`${API_URL}/departamentos/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setDepartamentos(d.results || d); } catch {} };
+  const fetchMisCitasPaciente = async () => { try { const r = await fetch(`${API_URL}/citas/`, { headers: { 'Authorization': `Bearer ${token}` } }); const d = await r.json(); setMisCitas(d.results || d); } catch {} };
+
+  const handleSolicitarCita = async (e) => {
+    e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/hospitalizaciones/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      console.log('📊 Hospitalizaciones recibidas:', data);
-      setHospitalizacionesActivas(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener hospitalizaciones:', error);
-    }
+      const r = await fetch(`${API_URL}/citas/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(nuevaCitaPaciente) });
+      if (r.ok) { setShowModalCitaPaciente(false); setNuevaCitaPaciente({ fecha_hora: '', motivo: '' }); fetchMisCitasPaciente(); alert('Cita solicitada correctamente'); }
+      else { const err = await r.json(); alert(err.detail || err.error || 'Error al solicitar la cita. ¿Tienes médico de cabecera asignado?'); }
+    } catch { alert('Error al solicitar la cita'); }
   };
 
-  const fetchCitas = async () => {
+  const handleCancelarCitaPaciente = async (citaId) => {
+    if (!window.confirm('¿Seguro que quieres cancelar esta cita?')) return;
     try {
-      const response = await fetch(`${API_URL}/citas/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setCitas(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener citas:', error);
-    }
-  };
-
-  const fetchDoctores = async () => {
-    try {
-      const response = await fetch(`${API_URL}/doctores/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setDoctores(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener doctores:', error);
-    }
-  };
-
-  const fetchHabitaciones = async () => {
-    try {
-      const response = await fetch(`${API_URL}/habitaciones/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setHabitaciones(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener habitaciones:', error);
-    }
-  };
-
-  const fetchHistoriasClinicas = async () => {
-    try {
-      const response = await fetch(`${API_URL}/historias-clinicas/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setHistorias(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener historias clínicas:', error);
-    }
-  };
-
-  const fetchMisDatos = async () => {
-    //Obtener datos del doctor/enfermero
-    try {
-      if (user.rol === 'doctor') {
-        const response = await fetch(`${API_URL}/doctores/`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        const doctores = data.results || data;
-        const miDoctor = doctores.find(d => d.usuario_info?.username === user.username);
-        if (miDoctor) {
-          setMisDoctorData(miDoctor);
-        }
-      }
-    } catch (error) {
-      console.error('Error al obtener datos del doctor:', error);
-    }
-  };
-
-  const fetchMisCitasHoy = async () => {
-    //Obtener mis citas de hoy (solo doctores)
-    if (user.rol !== 'doctor') return;
-    
-    try {
-      const response = await fetch(`${API_URL}/citas/mis_citas/?fecha=${new Date().toISOString().split('T')[0]}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setMisCitasHoy(data);
-    } catch (error) {
-      console.error('Error al obtener mis citas:', error);
-    }
-  };
-
-  const fetchMedicamentos = async () => {
-    //Obtener medicamentos disponibles
-    try {
-      const response = await fetch(`${API_URL}/medicamentos/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setMedicamentosDisponibles(data.results || data);
-    } catch (error) {
-      console.error('Error al obtener medicamentos:', error);
-    }
+      const r = await fetch(`${API_URL}/citas/${citaId}/cambiar_estado/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ estado: 'cancelada' }) });
+      if (r.ok) fetchMisCitasPaciente(); else alert('Error al cancelar la cita');
+    } catch { alert('Error al cancelar la cita'); }
   };
 
   const verificarAlergias = async (medicamentoId) => {
-    //Verificar si hay alergias al medicamento
     if (!citaEnConsulta || !medicamentoId) return;
-    
     try {
-      const response = await fetch(`${API_URL}/prescripciones/crear_con_alerta/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          historia_clinica_id: citaEnConsulta.historia_id,
-          medicamento_id: medicamentoId
-        })
-      });
-      const data = await response.json();
-      setAlertaMedicamento(data);
-    } catch (error) {
-      console.error('Error al verificar alergias:', error);
-    }
+      const r = await fetch(`${API_URL}/prescripciones/crear_con_alerta/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ historia_clinica_id: citaEnConsulta.historia_id, medicamento_id: medicamentoId }) });
+      setAlertaMedicamento(await r.json());
+    } catch {}
   };
 
   const iniciarConsulta = async (cita) => {
-    //Iniciar una consulta con un paciente"
     try {
-      // Cambiar estado de cita a "en_curso"
-      await fetch(`${API_URL}/citas/${cita.id}/cambiar_estado/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ estado: 'en_curso' })
-      });
-
-      // Obtener historias del paciente para crear una nueva
-      const response = await fetch(`${API_URL}/pacientes/${cita.paciente_info.id}/historia_clinica/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const historias = await response.json();
-      
-      setCitaEnConsulta({
-        ...cita,
-        historia_id: null, // Se creará al guardar
-        historias_previas: historias
-      });
+      await fetch(`${API_URL}/citas/${cita.id}/cambiar_estado/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ estado: 'en_curso' }) });
+      const r = await fetch(`${API_URL}/pacientes/${cita.paciente_info.id}/historia_clinica/`, { headers: { 'Authorization': `Bearer ${token}` } });
+      setCitaEnConsulta({ ...cita, historia_id: null, historias_previas: await r.json() });
       setShowFormConsulta(true);
       setActiveView('consulta');
-    } catch (error) {
-      console.error('Error al iniciar consulta:', error);
-      alert('Error al iniciar consulta');
-    }
+    } catch { alert('Error al iniciar consulta'); }
   };
 
   const guardarHistoriaClinica = async () => {
-    //Guardar nueva historia clínica
-    if (!citaEnConsulta || !nuevaHistoria.diagnostico || !nuevaHistoria.sintomas) {
-      alert('Por favor completa diagnóstico y síntomas');
-      return;
-    }
-
+    if (!citaEnConsulta || !nuevaHistoria.diagnostico || !nuevaHistoria.sintomas) { alert('Por favor completa diagnóstico y síntomas'); return; }
     try {
-      const response = await fetch(`${API_URL}/historias-clinicas/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          paciente: citaEnConsulta.paciente_info.id,
-          doctor: misDoctorData.id,
-          cita: citaEnConsulta.id,
-          diagnostico: nuevaHistoria.diagnostico,
-          sintomas: nuevaHistoria.sintomas,
-          tratamiento: nuevaHistoria.tratamiento,
-          examenes_solicitados: nuevaHistoria.examenes_solicitados,
-          notas_adicionales: nuevaHistoria.notas_adicionales
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCitaEnConsulta({ ...citaEnConsulta, historia_id: data.id });
-        alert('Historia clínica guardada');
-        setNuevaHistoria({
-          sintomas: '',
-          diagnostico: '',
-          tratamiento: '',
-          examenes_solicitados: '',
-          notas_adicionales: ''
-        });
-      }
-    } catch (error) {
-      console.error('Error al guardar historia:', error);
-      alert('Error al guardar historia clínica');
-    }
+      const r = await fetch(`${API_URL}/historias-clinicas/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ paciente: citaEnConsulta.paciente_info.id, doctor: misDoctorData.id, cita: citaEnConsulta.id, ...nuevaHistoria }) });
+      if (r.ok) { const data = await r.json(); setCitaEnConsulta({ ...citaEnConsulta, historia_id: data.id }); alert('Historia clínica guardada'); setNuevaHistoria({ sintomas: '', diagnostico: '', tratamiento: '', examenes_solicitados: '', notas_adicionales: '' }); }
+    } catch { alert('Error al guardar historia clínica'); }
   };
 
   const guardarPrescripcion = async () => {
-    //Guardar prescripción de medicamento
-    if (!citaEnConsulta?.historia_id || !nuevaPrescripcion.medicamento_id) {
-      alert('Por favor selecciona un medicamento');
-      return;
-    }
-
+    if (!citaEnConsulta?.historia_id || !nuevaPrescripcion.medicamento_id) { alert('Por favor selecciona un medicamento'); return; }
     try {
-      const response = await fetch(`${API_URL}/prescripciones/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          historia_clinica: citaEnConsulta.historia_id,
-          medicamento: nuevaPrescripcion.medicamento_id,
-          dosis: nuevaPrescripcion.dosis,
-          frecuencia: nuevaPrescripcion.frecuencia,
-          duracion: nuevaPrescripcion.duracion,
-          instrucciones: nuevaPrescripcion.instrucciones
-        })
-      });
-
-      if (response.ok) {
-        alert('Medicamento recetado');
-        setNuevaPrescripcion({
-          medicamento_id: '',
-          dosis: '',
-          frecuencia: '',
-          duracion: '',
-          instrucciones: ''
-        });
-        setAlertaMedicamento(null);
-        // Recargar prescripciones
-        fetchMedicamentos();
-      }
-    } catch (error) {
-      console.error('Error al guardar prescripción:', error);
-      alert('Error al recetar medicamento');
-    }
+      const r = await fetch(`${API_URL}/prescripciones/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ historia_clinica: citaEnConsulta.historia_id, medicamento: nuevaPrescripcion.medicamento_id, ...nuevaPrescripcion }) });
+      if (r.ok) { alert('Medicamento recetado'); setNuevaPrescripcion({ medicamento_id: '', dosis: '', frecuencia: '', duracion: '', instrucciones: '' }); setAlertaMedicamento(null); fetchMedicamentos(); }
+    } catch { alert('Error al recetar medicamento'); }
   };
 
   const completarConsulta = async () => {
-    //Completar consulta y cambiar estado de cita
     try {
-      await fetch(`${API_URL}/citas/${citaEnConsulta.id}/cambiar_estado/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ estado: 'completada' })
-      });
-
+      await fetch(`${API_URL}/citas/${citaEnConsulta.id}/cambiar_estado/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ estado: 'completada' }) });
       alert('Consulta completada');
-      setCitaEnConsulta(null);
-      setShowFormConsulta(false);
-      setShowFormPrescripcion(false);
-      fetchMisCitasHoy();
-      setActiveView('dashboard');
-    } catch (error) {
-      console.error('Error al completar consulta:', error);
-      alert('Error al completar consulta');
-    }
+      setCitaEnConsulta(null); setShowFormConsulta(false); setShowFormPrescripcion(false); setShowFormDerivacion(false);
+      fetchMisCitasHoy(); setActiveView('dashboard');
+    } catch { alert('Error al completar consulta'); }
   };
-/*
-  const fetchPacienteDetalle = async (pacienteId) => {
+
+  const handleDerivar = async (e) => {
+    e.preventDefault();
     try {
-      // Obtener datos del paciente
-      const pacienteResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const pacienteData = await pacienteResponse.json();
-      setSelectedPaciente(pacienteData);
-
-      // Obtener historias clínicas del paciente
-      const historiasResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/historia_clinica/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const historiasData = await historiasResponse.json();
-      setPacienteHistorias(historiasData);
-
-      // Obtener citas del paciente
-      const citasResponse = await fetch(`${API_URL}/pacientes/${pacienteId}/citas/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const citasData = await citasResponse.json();
-      setPacienteCitas(citasData);
-
-      // Cambiar vista al perfil
-      setActiveView('perfil-paciente');
-    } catch (error) {
-      console.error('Error al obtener detalles del paciente:', error);
-      alert('Error al cargar los detalles del paciente');
-    }
+      const r = await fetch(`${API_URL}/citas/derivar/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ departamento: nuevaDerivacion.departamento, fecha_hora: nuevaDerivacion.fecha_hora, motivo: nuevaDerivacion.motivo, paciente: citaEnConsulta.paciente_info.id }) });
+      if (r.ok) { const data = await r.json(); alert(`Derivación creada. Doctor asignado: ${data.doctor_info?.nombre_completo || 'asignado'}`); setShowFormDerivacion(false); setNuevaDerivacion({ departamento: '', fecha_hora: '', motivo: '' }); }
+      else { const err = await r.json(); alert(err.error || 'Error al crear la derivación'); }
+    } catch { alert('Error al crear la derivación'); }
   };
-*/
-  const volverALista = () => {
-    setSelectedPaciente(null);
-    setPacienteHistorias([]);
-    setPacienteCitas([]);
-    setActiveView('pacientes');
-    setActiveTab('info');
+
+  const handleDarAlta = async (hospitalizacionId) => {
+    if (!window.confirm('¿Confirmas que quieres dar el alta a este paciente?')) return;
+    try {
+      const r = await fetch(`${API_URL}/hospitalizaciones/${hospitalizacionId}/`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ estado: 'alta' }) });
+      if (r.ok) { alert('Paciente dado de alta correctamente'); fetchHospitalizaciones(); }
+      else { const err = await r.json(); alert(err.detail || 'Error al dar el alta'); }
+    } catch { alert('Error al dar el alta'); }
   };
+
+  const volverALista = () => { setSelectedPaciente(null); setPacienteHistorias([]); setPacienteCitas([]); setActiveView('pacientes'); setActiveTab('info'); };
 
   const handleCreatePaciente = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/pacientes/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newPaciente)
-      });
-      
-      if (response.ok) {
-        setShowModal(false);
-        fetchPacientes();
-        alert('Paciente creado exitosamente');
-        setNewPaciente({
-          nombre: '', apellidos: '', fecha_nacimiento: '', genero: 'M',
-          tipo_sangre: 'O+', telefono: '', direccion: '', numero_historia: ''
-        });
-      } else {
-        alert('Error al crear paciente');
-      }
-    } catch (error) {
-      console.error('Error al crear paciente:', error);
-      alert('Error al crear paciente');
-    }
+      const r = await fetch(`${API_URL}/pacientes/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(newPaciente) });
+      if (r.ok) { setShowModal(false); fetchPacientes(); alert('Paciente creado exitosamente'); setNewPaciente({ nombre: '', apellidos: '', fecha_nacimiento: '', genero: 'M', tipo_sangre: 'O+', telefono: '', direccion: '', numero_historia: '' }); }
+      else alert('Error al crear paciente');
+    } catch { alert('Error al crear paciente'); }
   };
 
   const handleCreateCita = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/citas/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newCita)
-      });
-      
-      if (response.ok) {
-        setShowModal(false);
-        fetchCitas();
-        alert('Cita creada exitosamente');
-        setNewCita({ paciente: '', doctor: '', fecha_hora: '', motivo: '' });
-      } else {
-        alert('Error al crear cita');
-      }
-    } catch (error) {
-      console.error('Error al crear cita:', error);
-      alert('Error al crear cita');
-    }
+      const r = await fetch(`${API_URL}/citas/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(newCita) });
+      if (r.ok) { setShowModal(false); fetchCitas(); alert('Cita creada exitosamente'); setNewCita({ paciente: '', doctor: '', fecha_hora: '', motivo: '' }); }
+      else alert('Error al crear cita');
+    } catch { alert('Error al crear cita'); }
   };
 
   useEffect(() => {
@@ -639,482 +246,335 @@ const fetchPacientesHabitacion = async (habitacionId) => {
       if (activeView === 'habitaciones') fetchHabitaciones();
       if (activeView === 'historias') fetchHistoriasClinicas();
       if (activeView === 'hospitalizacion') fetchHospitalizaciones();
+      if (activeView === 'mis-citas') fetchMisCitasPaciente();
     }
   }, [activeView, token]);
 
-  // Cargar datos iniciales del doctor y sus citas
   useEffect(() => {
     if (token && user && (user.rol === 'doctor' || user.rol === 'enfermero')) {
       fetchMisDatos();
-      if (user.rol === 'doctor') {
-        fetchMisCitasHoy();
-      }
+      if (user.rol === 'doctor') fetchMisCitasHoy();
       fetchMedicamentos();
+      fetchDepartamentos();
     }
   }, [token, user]);
-  // Cargar pacientes de la habitación seleccionada
-  useEffect(() => {
-  console.log('🔄 useEffect disparado');
-  console.log('📌 Token:', !!token);
-  console.log('🏥 Habitación seleccionada:', selectedHabitacion);
-  console.log('👁️ Vista activa:', activeView);
-  
-  if (token && selectedHabitacion && activeView === 'detalle-habitacion') {
-    console.log('✅ Todas las condiciones cumplidas, fetching...');
-    fetchPacientesHabitacion(selectedHabitacion.id);
-  } else {
-    console.log('❌ Condiciones NO cumplidas');
-    if (!token) console.log('   - Falta token');
-    if (!selectedHabitacion) console.log('   - Falta habitación seleccionada');
-    if (activeView !== 'detalle-habitacion') console.log('   - Vista incorrecta:', activeView);
-  }
-}, [selectedHabitacion, activeView, token]);
 
-  // Función para verificar permisos
+  useEffect(() => {
+    if (token && selectedHabitacion && activeView === 'detalle-habitacion') {
+      fetchPacientesHabitacion(selectedHabitacion.id);
+    }
+  }, [selectedHabitacion, activeView, token]);
+
   const canAccess = (feature) => {
     if (!user) return false;
-    
     const permissions = {
-      'pacientes': ['admin', 'doctor', 'enfermero', 'recepcionista'],
-      'citas': ['admin', 'doctor', 'enfermero', 'recepcionista', 'paciente'],
-      'doctores': ['admin', 'doctor', 'enfermero', 'recepcionista'],
-      'habitaciones': ['admin', 'doctor', 'enfermero'],
-      'historias': ['admin', 'doctor', 'enfermero', 'paciente'],
-      'crear_paciente': ['admin', 'doctor', 'recepcionista'],
-      'crear_cita': ['admin', 'doctor', 'recepcionista'],
+      pacientes: ['admin', 'doctor', 'enfermero', 'recepcionista'],
+      citas: ['admin', 'doctor', 'enfermero', 'recepcionista', 'paciente'],
+      doctores: ['admin', 'doctor', 'enfermero', 'recepcionista'],
+      habitaciones: ['admin', 'doctor', 'enfermero'],
+      historias: ['admin', 'doctor', 'enfermero', 'paciente'],
+      crear_paciente: ['admin', 'doctor', 'recepcionista'],
+      crear_cita: ['admin', 'doctor', 'recepcionista'],
     };
-    
     return permissions[feature]?.includes(user.rol) || false;
   };
 
+  // ── LOGIN ──
   if (!token) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Activity className="text-white" size={32} />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-800">Hospital Medac</h1>
-            <p className="text-gray-600 mt-2">Gestión Interna</p>
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-logo">
+            <Activity color="#fff" size={26} />
           </div>
-          
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Usuario</label>
-              <input
-                type="text"
-                value={loginData.username}
-                onChange={(e) => setLoginData({...loginData, username: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ingrese su usuario"
-                required
-              />
+          <h1 className="login-title">Hospital Medac</h1>
+          <p className="login-sub">Sistema de Gestión Interna</p>
+          <form onSubmit={handleLogin}>
+            <div className="form-group">
+              <label className="form-label">Usuario</label>
+              <input className="form-control" type="text" value={loginData.username} onChange={e => setLoginData({ ...loginData, username: e.target.value })} placeholder="Introduce tu usuario" required />
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-              <input
-                type="password"
-                value={loginData.password}
-                onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ingrese su contraseña"
-                required
-              />
+            <div className="form-group">
+              <label className="form-label">Contraseña</label>
+              <input className="form-control" type="password" value={loginData.password} onChange={e => setLoginData({ ...loginData, password: e.target.value })} placeholder="Introduce tu contraseña" required />
             </div>
-            
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-            >
-              Iniciar Sesión
-            </button>
+            <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8 }}>Iniciar sesión</button>
           </form>
-          
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-xs text-gray-600">
-            <p className="font-semibold mb-2">Usuarios de prueba:</p>
-            <p>• Admin: admin / Medac123</p>
-            <p>• Medico: garcia / Medac123</p>
-            <p>• Paciente: juan / Medac123</p>
+          <div style={{ marginTop: 20 }}>
+            <div className="info-block-label" style={{ marginBottom: 10 }}>Acceso rápido de demostración</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { label: 'Médico Cabecera 1', username: 'MedicoCab1', rol: 'Medicina General' },
+                { label: 'Médico Cabecera 2', username: 'MedicoCab2', rol: 'Medicina General' },
+                { label: 'Paciente 1', username: 'Pacienteuno', rol: 'Paciente' },
+                { label: 'Paciente 2', username: 'PacienteDos', rol: 'Paciente' },
+                { label: 'Especialista 1', username: 'garcia', rol: 'Especialista' },
+                { label: 'Especialista 2', username: 'lopez', rol: 'Especialista' },
+              ].map(u => (
+                <button
+                  key={u.username}
+                  type="button"
+                  onClick={() => setLoginData({ username: u.username, password: 'Medac123' })}
+                  className="btn btn-outline btn-sm"
+                  style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '8px 12px', height: 'auto' }}
+                >
+                  <span className="font-semibold" style={{ fontSize: 12 }}>{u.label}</span>
+                  <span className="text-muted" style={{ fontSize: 11 }}>{u.rol}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  const StatCard = ({ icon: Icon, title, value, color }) => (
-    <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-gray-600 text-sm font-medium">{title}</p>
-          <p className="text-3xl font-bold text-gray-800 mt-2">{value || 0}</p>
-        </div>
-        <div className={`${color} p-4 rounded-full`}>
-          <Icon className="text-white" size={24} />
-        </div>
-      </div>
+  // ── NAV LINKS por rol ──
+  const navLinks = {
+    paciente: [
+      { view: 'mis-citas', label: 'Mis Citas', icon: <Calendar size={16} /> },
+      { view: 'historias', label: 'Mi Historial', icon: <FileText size={16} /> },
+    ],
+    doctor: [
+      { view: 'consulta', label: 'Consulta', icon: <Stethoscope size={16} /> },
+      { view: 'pacientes', label: 'Pacientes', icon: <Users size={16} /> },
+      { view: 'hospitalizacion', label: 'Hospitalización', icon: <Bed size={16} /> },
+      { view: 'medicamentos', label: 'Medicamentos', icon: <Activity size={16} /> },
+    ],
+    enfermero: [
+      { view: 'pacientes', label: 'Pacientes', icon: <Users size={16} /> },
+      { view: 'citas', label: 'Citas', icon: <Calendar size={16} /> },
+      { view: 'hospitalizacion', label: 'Hospitalización', icon: <Bed size={16} /> },
+      { view: 'medicamentos', label: 'Medicamentos', icon: <Activity size={16} /> },
+    ],
+    admin: [
+      { view: 'pacientes', label: 'Pacientes', icon: <Users size={16} /> },
+      { view: 'citas', label: 'Citas', icon: <Calendar size={16} /> },
+      { view: 'doctores', label: 'Doctores', icon: <Stethoscope size={16} /> },
+      { view: 'habitaciones', label: 'Habitaciones', icon: <Bed size={16} /> },
+    ],
+  };
+  const links = navLinks[user?.rol] || [];
+
+  // ── STAT CARD ──
+  const StatCard = ({ title, value, color }) => (
+    <div className="stat-card" style={{ borderLeftColor: color }}>
+      <div className="stat-card-val">{value ?? 0}</div>
+      <div className="stat-card-lbl">{title}</div>
     </div>
   );
+
+  // ── DASHBOARD ──
   const renderDashboard = () => {
     const isPaciente = user?.rol === 'paciente';
-    
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {isPaciente ? 'Mi Panel Personal' : 'Panel de Control'}
-          </h2>
-          <div className="bg-blue-100 px-4 py-2 rounded-lg">
-            <span className="text-blue-800 font-semibold text-sm">
-              Rol: {user?.rol?.toUpperCase()}
-            </span>
+      <div className="space-y">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">{isPaciente ? 'Mi Panel Personal' : 'Panel de Control'}</h1>
+            <p className="page-subtitle">Rol: {user?.rol?.toUpperCase()}</p>
           </div>
         </div>
-        
+
         {isPaciente ? (
-          // Dashboard para Pacientes
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StatCard 
-                icon={Calendar} 
-                title="Mis Citas Pendientes" 
-                value={stats.mis_citas_pendientes} 
-                color="bg-blue-500"
-              />
-              <StatCard 
-                icon={Calendar} 
-                title="Total de Citas" 
-                value={stats.total_citas} 
-                color="bg-green-500"
-              />
-              <StatCard 
-                icon={FileText} 
-                title="Historias Clínicas" 
-                value={stats.historias_clinicas} 
-                color="bg-purple-500"
-              />
+          <>
+            <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+              <StatCard title="Citas Pendientes" value={stats.mis_citas_pendientes} color="var(--blue)" />
+              <StatCard title="Total de Citas" value={stats.total_citas} color="var(--green)" />
+              <StatCard title="Historias Clínicas" value={stats.historias_clinicas} color="var(--purple)" />
             </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-xl font-semibold mb-4 text-gray-800">Acceso Rápido</h3>
-              <div className="space-y-3">
-                <button 
-                  onClick={() => setActiveView('citas')}
-                  className="w-full bg-blue-50 hover:bg-blue-100 p-4 rounded-lg flex items-center text-left transition-colors"
-                >
-                  <Calendar className="text-blue-600 mr-3" size={20} />
-                  <div>
-                    <span className="font-medium text-gray-800 block">Mis Citas</span>
-                    <span className="text-xs text-gray-600">Ver y gestionar mis citas médicas</span>
-                  </div>
+            <div className="card">
+              <div className="card-header"><span className="card-title">Acceso Rápido</span></div>
+              <div className="card-body space-y">
+                <button onClick={() => navTo('mis-citas')} className="btn btn-outline btn-block" style={{ justifyContent: 'flex-start', gap: 10 }}>
+                  <Calendar size={18} color="var(--blue)" /> <span>Mis Citas</span>
                 </button>
-                <button 
-                  onClick={() => setActiveView('historias')}
-                  className="w-full bg-purple-50 hover:bg-purple-100 p-4 rounded-lg flex items-center text-left transition-colors"
-                >
-                  <FileText className="text-purple-600 mr-3" size={20} />
-                  <div>
-                    <span className="font-medium text-gray-800 block">Mi Historial Médico</span>
-                    <span className="text-xs text-gray-600">Consultar mis historias clínicas</span>
-                  </div>
+                <button onClick={() => navTo('historias')} className="btn btn-outline btn-block" style={{ justifyContent: 'flex-start', gap: 10 }}>
+                  <FileText size={18} color="var(--purple)" /> <span>Mi Historial Médico</span>
                 </button>
               </div>
             </div>
-
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-semibold mb-2">Información Personal</h3>
-              <p className="text-blue-100 text-sm">
-                Bienvenido a tu portal de paciente. Aquí puedes consultar tus citas, ver tu historial médico y estar al día con tu salud.
-              </p>
+            <div className="hero-banner">
+              <h1>Bienvenido a tu portal</h1>
+              <p>Aquí puedes consultar tus citas, ver tu historial médico y estar al día con tu salud.</p>
             </div>
-          </div>
+          </>
         ) : (
-          // Dashboard para Personal Médico/Admin
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard 
-                icon={Users} 
-                title="Total Pacientes" 
-                value={stats.total_pacientes} 
-                color="bg-blue-500"
-              />
-              <StatCard 
-                icon={Calendar} 
-                title="Citas Hoy" 
-                value={stats.citas_hoy} 
-                color="bg-green-500"
-              />
-              <StatCard 
-                icon={Bed} 
-                title="Hospitalizaciones" 
-                value={stats.hospitalizaciones_activas} 
-                color="bg-purple-500"
-              />
-              <StatCard 
-                icon={Clock} 
-                title="Habitaciones Libres" 
-                value={stats.habitaciones_disponibles} 
-                color="bg-orange-500"
-              />
+          <>
+            <div className="stats-grid">
+              <StatCard title="Total Pacientes" value={stats.total_pacientes} color="var(--blue)" />
+              <StatCard title="Citas Hoy" value={stats.citas_hoy} color="var(--green)" />
+              <StatCard title="Hospitalizaciones" value={stats.hospitalizaciones_activas} color="var(--purple)" />
+              <StatCard title="Hab. Libres" value={stats.habitaciones_disponibles} color="var(--orange)" />
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">Acceso Rápido</h3>
-                <div className="space-y-3">
-                  {canAccess('pacientes') && (
-                    <button 
-                      onClick={() => setActiveView('pacientes')}
-                      className="w-full bg-blue-50 hover:bg-blue-100 p-4 rounded-lg flex items-center text-left transition-colors"
-                    >
-                      <Users className="text-blue-600 mr-3" size={20} />
-                      <span className="font-medium text-gray-800">Gestionar Pacientes</span>
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => setActiveView('citas')}
-                    className="w-full bg-green-50 hover:bg-green-100 p-4 rounded-lg flex items-center text-left transition-colors"
-                  >
-                    <Calendar className="text-green-600 mr-3" size={20} />
-                    <span className="font-medium text-gray-800">Ver Citas</span>
-                  </button>
-                  {canAccess('doctores') && (
-                    <button 
-                      onClick={() => setActiveView('doctores')}
-                      className="w-full bg-purple-50 hover:bg-purple-100 p-4 rounded-lg flex items-center text-left transition-colors"
-                    >
-                      <Stethoscope className="text-purple-600 mr-3" size={20} />
-                      <span className="font-medium text-gray-800">Doctores</span>
-                    </button>
-                  )}
+            <div className="grid-2">
+              <div className="card">
+                <div className="card-header"><span className="card-title">Acceso Rápido</span></div>
+                <div className="card-body space-y">
+                  {canAccess('pacientes') && <button onClick={() => navTo('pacientes')} className="btn btn-outline btn-block" style={{ justifyContent: 'flex-start', gap: 10 }}><Users size={16} color="var(--blue)" /> Gestionar Pacientes</button>}
+                  <button onClick={() => navTo('citas')} className="btn btn-outline btn-block" style={{ justifyContent: 'flex-start', gap: 10 }}><Calendar size={16} color="var(--green)" /> Ver Citas</button>
+                  {canAccess('doctores') && <button onClick={() => navTo('doctores')} className="btn btn-outline btn-block" style={{ justifyContent: 'flex-start', gap: 10 }}><Stethoscope size={16} color="var(--purple)" /> Doctores</button>}
                 </div>
               </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h3 className="text-xl font-semibold mb-4 text-gray-800">Estadísticas</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center pb-3 border-b">
-                    <span className="text-gray-600">Citas Pendientes</span>
-                    <span className="font-bold text-lg text-blue-600">{stats.citas_pendientes || 0}</span>
+              <div className="card">
+                <div className="card-header"><span className="card-title">Estadísticas</span></div>
+                <div className="card-body">
+                  <div className="list-item">
+                    <span className="text-secondary">Citas pendientes</span>
+                    <strong style={{ color: 'var(--blue)' }}>{stats.citas_pendientes || 0}</strong>
                   </div>
-                  <div className="flex justify-between items-center pb-3 border-b">
-                    <span className="text-gray-600">Ocupación</span>
-                    <span className="font-bold text-lg text-green-600">
-                      {stats.hospitalizaciones_activas && stats.habitaciones_disponibles 
-                        ? Math.round((stats.hospitalizaciones_activas / (stats.hospitalizaciones_activas + stats.habitaciones_disponibles)) * 100) 
+                  <div className="list-item">
+                    <span className="text-secondary">Ocupación</span>
+                    <strong style={{ color: 'var(--green)' }}>
+                      {stats.hospitalizaciones_activas && stats.habitaciones_disponibles
+                        ? Math.round((stats.hospitalizaciones_activas / (stats.hospitalizaciones_activas + stats.habitaciones_disponibles)) * 100)
                         : 0}%
-                    </span>
+                    </strong>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     );
   };
 
-  const renderPacientes = () => {
-    if (!canAccess('pacientes')) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-          <X className="text-red-500 mx-auto mb-4" size={48} />
-          <h3 className="text-xl font-bold text-red-800 mb-2">Acceso Denegado</h3>
-          <p className="text-red-600">No tienes permisos para acceder a esta sección.</p>
+  // ── DASHBOARD DOCTOR ──
+  const renderDashboardDoctor = () => (
+    <div className="space-y">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Bienvenido, {user.first_name || user.username}</h1>
+          <p className="page-subtitle">{user.rol === 'doctor' ? 'Panel de Trabajo · Doctor' : 'Panel de Visualización · Enfermero'}</p>
         </div>
-      );
-    }
+        <div className="card" style={{ padding: '10px 16px', textAlign: 'center' }}>
+          <div className="text-muted text-sm">Hora actual</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--primary)' }}>{new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+      </div>
 
-    return (
-      <div className="space-y-6">
+      <div className="hero-banner">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">Pacientes</h2>
-          {canAccess('crear_paciente') && (
-            <button 
-              onClick={() => setShowModal(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-blue-700 transition-colors"
-            >
-              <Plus size={20} className="mr-2" />
-              Nuevo Paciente
-            </button>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md p-4">
-          <div className="flex items-center border border-gray-300 rounded-lg px-4 py-2 mb-4">
-            <Search className="text-gray-400 mr-2" size={20} />
-            <input
-              type="text"
-              placeholder="Buscar paciente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 outline-none"
-            />
+          <div>
+            <h1 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Mis Citas de Hoy</h1>
+            <p>{obtenerFechaHoy()}</p>
           </div>
+          <div style={{ fontSize: 48, fontWeight: 700, opacity: 0.25 }}>{misCitasHoy.length}</div>
+        </div>
+      </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">N° Historia</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Nombre</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tipo Sangre</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Teléfono</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Estado</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pacientes.filter(p => 
-                  p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  p.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  p.numero_historia.includes(searchTerm)
-                ).map((paciente) => (
-                  <tr key={paciente.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm">{paciente.numero_historia}</td>
-                    <td className="px-4 py-3 text-sm font-medium">{paciente.nombre} {paciente.apellidos}</td>
-                    <td className="px-4 py-3 text-sm">{paciente.tipo_sangre}</td>
-                    <td className="px-4 py-3 text-sm">{paciente.telefono}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        paciente.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {paciente.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => fetchPacienteDetalle(paciente.id)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg text-sm transition-colors flex items-center"
-                      >
-                        <User size={14} className="mr-1" />
-                        Ver Perfil
-                      </button>
-                    </td>
+      {user.rol === 'doctor' && (
+        <>
+          <h2 className="page-title">Citas Programadas</h2>
+          {misCitasHoy.length === 0 ? (
+            <div className="empty-state"><Calendar className="empty-state-icon" size={40} /><h3>Sin citas para hoy</h3></div>
+          ) : (
+            <div className="grid-2">
+              {misCitasHoy.map(cita => (
+                <div key={cita.id} className="cita-card" style={{ borderLeft: `4px solid var(--${cita.estado === 'programada' ? 'blue' : cita.estado === 'en_curso' ? 'orange' : cita.estado === 'completada' ? 'green' : 'red'})` }}>
+                  <div className="flex justify-between items-start mb-8">
+                    <div>
+                      <div className="text-muted text-sm">{new Date(cita.fecha_hora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
+                      <div className="font-semibold" style={{ fontSize: 15, marginTop: 2 }}>{cita.paciente_info.nombre} {cita.paciente_info.apellidos}</div>
+                    </div>
+                    <span className={`badge ${badgeEstado(cita.estado)}`}>{cita.estado}</span>
+                  </div>
+                  <div className="info-block mb-8">
+                    <div className="info-block-label">Motivo</div>
+                    <div className="info-block-val">{cita.motivo}</div>
+                  </div>
+                  <div className="flex gap-8 text-sm text-secondary mb-12">
+                    <span>N° Historia: {cita.paciente_info.numero_historia}</span>
+                    <span>Sangre: {cita.paciente_info.tipo_sangre}</span>
+                  </div>
+                  {cita.estado === 'programada' && <button onClick={() => iniciarConsulta(cita)} className="btn btn-primary btn-block">Iniciar Consulta</button>}
+                  {cita.estado === 'en_curso' && <button onClick={() => { setCitaEnConsulta(cita); setActiveView('consulta'); }} className="btn btn-warning btn-block">Continuar Consulta</button>}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="grid-3">
+            <button onClick={() => navTo('pacientes')} className="card" style={{ padding: 20, textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
+              <Users size={28} color="var(--blue)" style={{ marginBottom: 8 }} />
+              <div className="font-semibold">Mis Pacientes</div>
+            </button>
+            <button onClick={() => navTo('hospitalizacion')} className="card" style={{ padding: 20, textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
+              <Bed size={28} color="var(--purple)" style={{ marginBottom: 8 }} />
+              <div className="font-semibold">Hospitalizaciones</div>
+            </button>
+            <button onClick={() => navTo('medicamentos')} className="card" style={{ padding: 20, textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
+              <Activity size={28} color="var(--green)" style={{ marginBottom: 8 }} />
+              <div className="font-semibold">Medicamentos</div>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // ── PACIENTES ──
+  const renderPacientes = () => {
+    if (!canAccess('pacientes')) return <div className="alert alert-danger">No tienes permisos para acceder a esta sección.</div>;
+    return (
+      <div className="space-y">
+        <div className="page-header">
+          <h1 className="page-title">Pacientes</h1>
+          {canAccess('crear_paciente') && <button onClick={() => setShowModal(true)} className="btn btn-primary"><Plus size={16} /> Nuevo Paciente</button>}
+        </div>
+        <div className="card">
+          <div className="card-body">
+            <div className="search-wrap">
+              <Search className="search-icon" size={16} />
+              <input type="text" placeholder="Buscar por nombre, apellidos o N° historia..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>N° Historia</th><th>Nombre</th><th>Tipo Sangre</th><th>Teléfono</th><th>Estado</th><th>Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pacientes.filter(p =>
+                    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    p.apellidos.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    p.numero_historia.includes(searchTerm)
+                  ).map(paciente => (
+                    <tr key={paciente.id}>
+                      <td>{paciente.numero_historia}</td>
+                      <td><strong>{paciente.nombre} {paciente.apellidos}</strong></td>
+                      <td>{paciente.tipo_sangre}</td>
+                      <td>{paciente.telefono}</td>
+                      <td><span className={`badge ${paciente.activo ? 'badge-green' : 'badge-red'}`}>{paciente.activo ? 'Activo' : 'Inactivo'}</span></td>
+                      <td><button onClick={() => fetchPacienteDetalle(paciente.id)} className="btn btn-primary btn-sm"><User size={13} /> Ver Perfil</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Nuevo Paciente</h3>
-                <button onClick={() => setShowModal(false)}>
-                  <X size={24} className="text-gray-600 hover:text-gray-800" />
-                </button>
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header">
+                <h2 className="modal-title">Nuevo Paciente</h2>
+                <button className="modal-close" onClick={() => setShowModal(false)}><X size={20} /></button>
               </div>
-              
-              <form onSubmit={handleCreatePaciente} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                    <input
-                      type="text"
-                      value={newPaciente.nombre}
-                      onChange={(e) => setNewPaciente({...newPaciente, nombre: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Apellidos</label>
-                    <input
-                      type="text"
-                      value={newPaciente.apellidos}
-                      onChange={(e) => setNewPaciente({...newPaciente, apellidos: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
+              <form onSubmit={handleCreatePaciente}>
+                <div className="form-grid-2">
+                  <div className="form-group"><label className="form-label">Nombre</label><input className="form-control" value={newPaciente.nombre} onChange={e => setNewPaciente({ ...newPaciente, nombre: e.target.value })} required /></div>
+                  <div className="form-group"><label className="form-label">Apellidos</label><input className="form-control" value={newPaciente.apellidos} onChange={e => setNewPaciente({ ...newPaciente, apellidos: e.target.value })} required /></div>
+                  <div className="form-group"><label className="form-label">Fecha Nacimiento</label><input className="form-control" type="date" value={newPaciente.fecha_nacimiento} onChange={e => setNewPaciente({ ...newPaciente, fecha_nacimiento: e.target.value })} required /></div>
+                  <div className="form-group"><label className="form-label">Género</label><select className="form-control" value={newPaciente.genero} onChange={e => setNewPaciente({ ...newPaciente, genero: e.target.value })}><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
+                  <div className="form-group"><label className="form-label">Tipo de Sangre</label><select className="form-control" value={newPaciente.tipo_sangre} onChange={e => setNewPaciente({ ...newPaciente, tipo_sangre: e.target.value })}>{['O+','O-','A+','A-','B+','B-','AB+','AB-'].map(t => <option key={t}>{t}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label">Teléfono</label><input className="form-control" type="tel" value={newPaciente.telefono} onChange={e => setNewPaciente({ ...newPaciente, telefono: e.target.value })} required /></div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Nacimiento</label>
-                    <input
-                      type="date"
-                      value={newPaciente.fecha_nacimiento}
-                      onChange={(e) => setNewPaciente({...newPaciente, fecha_nacimiento: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Género</label>
-                    <select
-                      value={newPaciente.genero}
-                      onChange={(e) => setNewPaciente({...newPaciente, genero: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="M">Masculino</option>
-                      <option value="F">Femenino</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Sangre</label>
-                    <select
-                      value={newPaciente.tipo_sangre}
-                      onChange={(e) => setNewPaciente({...newPaciente, tipo_sangre: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                    <input
-                      type="tel"
-                      value={newPaciente.telefono}
-                      onChange={(e) => setNewPaciente({...newPaciente, telefono: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">N° Historia Clínica</label>
-                  <input
-                    type="text"
-                    value={newPaciente.numero_historia}
-                    onChange={(e) => setNewPaciente({...newPaciente, numero_historia: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-                  <textarea
-                    value={newPaciente.direccion}
-                    onChange={(e) => setNewPaciente({...newPaciente, direccion: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  Crear Paciente
-                </button>
+                <div className="form-group"><label className="form-label">N° Historia Clínica</label><input className="form-control" value={newPaciente.numero_historia} onChange={e => setNewPaciente({ ...newPaciente, numero_historia: e.target.value })} required /></div>
+                <div className="form-group"><label className="form-label">Dirección</label><textarea className="form-control" rows="2" value={newPaciente.direccion} onChange={e => setNewPaciente({ ...newPaciente, direccion: e.target.value })} required /></div>
+                <button type="submit" className="btn btn-primary btn-block">Crear Paciente</button>
               </form>
             </div>
           </div>
@@ -1123,405 +583,145 @@ const fetchPacientesHabitacion = async (habitacionId) => {
     );
   };
 
+  // ── PERFIL PACIENTE ──
   const renderPerfilPaciente = () => {
-    if (!selectedPaciente) {
-      return (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-          <p className="text-gray-600">Cargando información del paciente...</p>
-        </div>
-      );
-    }
-
-    const calcularEdad = (fechaNacimiento) => {
-      const hoy = new Date();
-      const nacimiento = new Date(fechaNacimiento);
-      let edad = hoy.getFullYear() - nacimiento.getFullYear();
-      const mes = hoy.getMonth() - nacimiento.getMonth();
-      if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
-        edad--;
-      }
-      return edad;
-    };
+    if (!selectedPaciente) return <div className="empty-state"><p>Cargando...</p></div>;
+    const calcularEdad = (f) => { const h = new Date(); const n = new Date(f); let e = h.getFullYear() - n.getFullYear(); if (h.getMonth() - n.getMonth() < 0 || (h.getMonth() - n.getMonth() === 0 && h.getDate() < n.getDate())) e--; return e; };
 
     return (
-      <div className="space-y-6">
-        {/* Cabecera con botón de regreso */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={volverALista}
-            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Volver a la lista
-          </button>
-          <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-            selectedPaciente.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
-            {selectedPaciente.activo ? 'Paciente Activo' : 'Paciente Inactivo'}
-          </span>
+      <div className="space-y">
+        <div className="flex justify-between items-center">
+          <button className="back-btn" onClick={volverALista}>← Volver a la lista</button>
+          <span className={`badge ${selectedPaciente.activo ? 'badge-green' : 'badge-red'}`}>{selectedPaciente.activo ? 'Paciente Activo' : 'Paciente Inactivo'}</span>
         </div>
 
-        {/* Tarjeta de información principal */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-8 text-white">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-6">
-              <div className="bg-white bg-opacity-20 p-6 rounded-full">
-                <User size={48} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold mb-2">
-                  {selectedPaciente.nombre} {selectedPaciente.apellidos}
-                </h1>
-                <div className="space-y-1 text-blue-100">
-                  <p className="flex items-center">
-                    <span className="font-semibold mr-2">N° Historia:</span>
-                    {selectedPaciente.numero_historia}
-                  </p>
-                  <p className="flex items-center">
-                    <span className="font-semibold mr-2">Edad:</span>
-                    {calcularEdad(selectedPaciente.fecha_nacimiento)} años
-                  </p>
-                  <p className="flex items-center">
-                    <span className="font-semibold mr-2">Fecha de Nacimiento:</span>
-                    {formatearFecha(selectedPaciente.fecha_nacimiento)}
-                  </p>
-                </div>
-              </div>
+        <div className="hero-banner">
+          <div className="flex items-center gap-12">
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '50%', padding: 16 }}>
+              <User size={40} color="#fff" />
             </div>
-            <div className="text-right">
-              <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg mb-2">
-                <p className="text-sm text-blue-100">Tipo de Sangre</p>
-                <p className="text-2xl font-bold">{selectedPaciente.tipo_sangre}</p>
-              </div>
-              <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-                <p className="text-sm text-blue-100">Género</p>
-                <p className="text-lg font-semibold">
-                  {selectedPaciente.genero === 'M' ? 'Masculino' : 'Femenino'}
-                </p>
+            <div style={{ flex: 1 }}>
+              <h1>{selectedPaciente.nombre} {selectedPaciente.apellidos}</h1>
+              <div className="hero-meta">
+                <span className="hero-meta-item">N° Historia: <strong>{selectedPaciente.numero_historia}</strong></span>
+                <span className="hero-meta-item">Edad: <strong>{calcularEdad(selectedPaciente.fecha_nacimiento)} años</strong></span>
+                <span className="hero-meta-item">Sangre: <strong>{selectedPaciente.tipo_sangre}</strong></span>
+                <span className="hero-meta-item">Género: <strong>{selectedPaciente.genero === 'M' ? 'Masculino' : 'Femenino'}</strong></span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Pestañas de navegación */}
-        <div className="bg-white rounded-xl shadow-md">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-1 p-4">
-              <button
-                onClick={() => setActiveTab('info')}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                  activeTab === 'info'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center">
-                  <User size={18} className="mr-2" />
-                  Información Personal
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('historias')}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                  activeTab === 'historias'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FileText size={18} className="mr-2" />
-                  Historial Médico ({pacienteHistorias.length})
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('citas')}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                  activeTab === 'citas'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center">
-                  <Calendar size={18} className="mr-2" />
-                  Citas ({pacienteCitas.length})
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('alergias')}
-                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                  activeTab === 'alergias'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center">
-                  <Activity size={18} className="mr-2" />
-                  Alergias y Observaciones
-                </div>
-              </button>
-            </nav>
+        <div className="card">
+          <div className="tabs">
+            {[['info','Información'], ['historias', `Historial (${pacienteHistorias === null ? '!' : pacienteHistorias.length})`], ['citas', `Citas (${pacienteCitas === null ? '!' : pacienteCitas.length})`], ['alergias','Alergias']].map(([key, label]) => (
+              <button key={key} className={`tab-btn ${activeTab === key ? 'active' : ''}`} onClick={() => setActiveTab(key)}>{label}</button>
+            ))}
           </div>
-
-          {/* Contenido de las pestañas */}
-          <div className="p-6">
-            {/* Pestaña: Información Personal */}
+          <div className="tab-content">
             {activeTab === 'info' && (
-              <div className="space-y-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Datos de Contacto</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Teléfono</p>
-                    <p className="text-lg font-semibold text-gray-800">{selectedPaciente.telefono}</p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Email</p>
-                    <p className="text-lg font-semibold text-gray-800">
-                      {selectedPaciente.email || 'No registrado'}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg md:col-span-2">
-                    <p className="text-sm text-gray-600 mb-1">Dirección</p>
-                    <p className="text-lg font-semibold text-gray-800">{selectedPaciente.direccion}</p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Seguro Médico</p>
-                    <p className="text-lg font-semibold text-gray-800">
-                      {selectedPaciente.seguro_medico || 'Sin seguro registrado'}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Fecha de Registro</p>
-                    <p className="text-lg font-semibold text-gray-800">
-                      {formatearFecha(selectedPaciente.fecha_registro)}
-                    </p>
-                  </div>
+              <div className="space-y">
+                <div className="grid-2">
+                  <div className="info-block"><div className="info-block-label">Teléfono</div><div className="info-block-val">{selectedPaciente.telefono}</div></div>
+                  <div className="info-block"><div className="info-block-label">Email</div><div className="info-block-val">{selectedPaciente.email || 'No registrado'}</div></div>
+                  <div className="info-block" style={{ gridColumn: '1/-1' }}><div className="info-block-label">Dirección</div><div className="info-block-val">{selectedPaciente.direccion}</div></div>
+                  <div className="info-block"><div className="info-block-label">Seguro Médico</div><div className="info-block-val">{selectedPaciente.seguro_medico || 'Sin seguro'}</div></div>
+                  <div className="info-block"><div className="info-block-label">Fecha de Registro</div><div className="info-block-val">{formatearFecha(selectedPaciente.fecha_registro)}</div></div>
                 </div>
-
-                {/* Tarjetas de información adicional */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 text-center">
-                    <Calendar className="text-blue-600 mx-auto mb-2" size={32} />
-                    <p className="text-sm text-blue-600 font-medium">Total de Citas</p>
-                    <p className="text-3xl font-bold text-blue-700">{pacienteCitas.length}</p>
+                <div className="grid-3">
+                  <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+                    <div className="text-muted text-sm mb-4">Total Citas</div>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: 'var(--blue)' }}>{pacienteCitas === null ? '-' : pacienteCitas.length}</div>
                   </div>
-                  <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 text-center">
-                    <FileText className="text-purple-600 mx-auto mb-2" size={32} />
-                    <p className="text-sm text-purple-600 font-medium">Historias Clínicas</p>
-                    <p className="text-3xl font-bold text-purple-700">{pacienteHistorias.length}</p>
+                  <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+                    <div className="text-muted text-sm mb-4">Historias Clínicas</div>
+                    <div style={{ fontSize: 28, fontWeight: 600, color: 'var(--purple)' }}>{pacienteHistorias === null ? '-' : pacienteHistorias.length}</div>
                   </div>
-                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 text-center">
-                    <Activity className="text-green-600 mx-auto mb-2" size={32} />
-                    <p className="text-sm text-green-600 font-medium">Estado</p>
-                    <p className="text-xl font-bold text-green-700">
-                      {selectedPaciente.activo ? 'Activo' : 'Inactivo'}
-                    </p>
+                  <div className="card" style={{ textAlign: 'center', padding: 16 }}>
+                    <div className="text-muted text-sm mb-4">Estado</div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: selectedPaciente.activo ? 'var(--green)' : 'var(--red)' }}>{selectedPaciente.activo ? 'Activo' : 'Inactivo'}</div>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Pestaña: Historial Médico */}
             {activeTab === 'historias' && (
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Consultas</h3>
-                {pacienteHistorias.length === 0 ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-                    <FileText className="text-gray-400 mx-auto mb-4" size={48} />
-                    <p className="text-gray-600">No hay historias clínicas registradas</p>
-                  </div>
-                ) : (
-                  pacienteHistorias.map((historia) => (
-                    <div key={historia.id} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-blue-300 transition-colors">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <p className="text-sm text-gray-600">
-                            {formatearFecha(historia.fecha)}
-                          </p>
-                          <p className="text-sm font-medium text-gray-700 mt-1">
-                            Atendido por: {historia.doctor_info?.nombre_completo || 'Doctor'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded">
-                          <p className="text-xs font-semibold text-red-700 mb-1">DIAGNÓSTICO</p>
-                          <p className="text-sm text-gray-800">{historia.diagnostico}</p>
-                        </div>
-
-                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
-                          <p className="text-xs font-semibold text-yellow-700 mb-1">SÍNTOMAS</p>
-                          <p className="text-sm text-gray-800">{historia.sintomas}</p>
-                        </div>
-
-                        <div className="bg-green-50 border-l-4 border-green-400 p-3 rounded">
-                          <p className="text-xs font-semibold text-green-700 mb-1">TRATAMIENTO</p>
-                          <p className="text-sm text-gray-800">{historia.tratamiento}</p>
-                        </div>
-
-                        {historia.examenes_solicitados && (
-                          <div className="bg-purple-50 border-l-4 border-purple-400 p-3 rounded">
-                            <p className="text-xs font-semibold text-purple-700 mb-1">EXÁMENES SOLICITADOS</p>
-                            <p className="text-sm text-gray-800">{historia.examenes_solicitados}</p>
-                          </div>
-                        )}
-
-                        {historia.notas_adicionales && (
-                          <div className="bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
-                            <p className="text-xs font-semibold text-gray-700 mb-1">NOTAS ADICIONALES</p>
-                            <p className="text-sm text-gray-800">{historia.notas_adicionales}</p>
-                          </div>
-                        )}
-
-                        {historia.prescripciones && historia.prescripciones.length > 0 && (
-                          <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                            <p className="text-xs font-semibold text-blue-700 mb-2">MEDICACIÓN PRESCRITA</p>
-                            <div className="space-y-2">
-                              {historia.prescripciones.map((presc, idx) => (
-                                <div key={idx} className="bg-white p-2 rounded text-sm">
-                                  <p className="font-semibold text-gray-800">
-                                    {presc.medicamento_info?.nombre || 'Medicamento'}
-                                  </p>
-                                  <p className="text-gray-600 text-xs">
-                                    Dosis: {presc.dosis} - Frecuencia: {presc.frecuencia} - Duración: {presc.duracion}
-                                  </p>
-                                  {presc.instrucciones && (
-                                    <p className="text-gray-600 text-xs mt-1">
-                                      Instrucciones: {presc.instrucciones}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+              <div className="space-y">
+                {pacienteHistorias === null ? (
+                  <div className="alert alert-danger"><strong>Acceso restringido.</strong> No tienes permiso para ver el historial de este paciente.</div>
+                ) : pacienteHistorias.length === 0 ? (
+                  <div className="empty-state"><FileText className="empty-state-icon" size={36} /><h3>Sin historias clínicas</h3></div>
+                ) : pacienteHistorias.map(historia => (
+                  <div key={historia.id} className="card">
+                    <div className="card-header">
+                      <span className="card-title">{formatearFecha(historia.fecha)}</span>
+                      <span className="text-secondary text-sm">Atendido por {historia.doctor_info?.nombre_completo || 'Doctor'}</span>
                     </div>
-                  ))
-                )}
+                    <div className="card-body space-y">
+                      <div className="mr-block mr-diagnostico"><div className="mr-block-label">Diagnóstico</div><div className="mr-block-text">{historia.diagnostico}</div></div>
+                      <div className="mr-block mr-sintomas"><div className="mr-block-label">Síntomas</div><div className="mr-block-text">{historia.sintomas}</div></div>
+                      <div className="mr-block mr-tratamiento"><div className="mr-block-label">Tratamiento</div><div className="mr-block-text">{historia.tratamiento}</div></div>
+                      {historia.examenes_solicitados && <div className="mr-block mr-examenes"><div className="mr-block-label">Exámenes</div><div className="mr-block-text">{historia.examenes_solicitados}</div></div>}
+                      {historia.notas_adicionales && <div className="mr-block mr-notas"><div className="mr-block-label">Notas</div><div className="mr-block-text">{historia.notas_adicionales}</div></div>}
+                      {historia.prescripciones?.length > 0 && (
+                        <div>
+                          <div className="info-block-label mb-8">Medicación prescrita</div>
+                          {historia.prescripciones.map((p, i) => (
+                            <div key={i} className="info-block mb-4">
+                              <strong>{p.medicamento_info?.nombre}</strong>
+                              <div className="text-secondary text-sm">Dosis: {p.dosis} · Frecuencia: {p.frecuencia} · Duración: {p.duracion}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Pestaña: Citas */}
             {activeTab === 'citas' && (
-              <div className="space-y-4">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Historial de Citas</h3>
-                {pacienteCitas.length === 0 ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-                    <Calendar className="text-gray-400 mx-auto mb-4" size={48} />
-                    <p className="text-gray-600">No hay citas registradas</p>
-                  </div>
+              <div className="space-y">
+                {pacienteCitas === null ? (
+                  <div className="alert alert-danger"><strong>Acceso restringido.</strong> No tienes permiso para ver las citas de este paciente.</div>
+                ) : pacienteCitas.length === 0 ? (
+                  <div className="empty-state"><Calendar className="empty-state-icon" size={36} /><h3>Sin citas registradas</h3></div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {pacienteCitas.map((cita) => (
-                      <div key={cita.id} className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-300 transition-colors">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center">
-                            <Calendar className="text-blue-600 mr-2" size={20} />
-                            <span className="text-sm font-semibold text-gray-700">
-                              {formatearFecha(cita.fecha_hora)}
-                            </span>
+                  <div className="grid-2">
+                    {pacienteCitas.map(cita => (
+                      <div key={cita.id} className={`cita-card ${cita.estado}`}>
+                        <div className="flex justify-between items-start mb-8">
+                          <div>
+                            <div className="text-muted text-sm">{formatearFecha(cita.fecha_hora)}</div>
+                            <div className="font-semibold mt-4">{cita.doctor_info?.nombre_completo || 'Doctor'}</div>
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            cita.estado === 'programada' ? 'bg-blue-100 text-blue-800' :
-                            cita.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                            cita.estado === 'cancelada' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {cita.estado}
-                          </span>
+                          <span className={`badge ${badgeEstado(cita.estado)}`}>{cita.estado}</span>
                         </div>
-
-                        <div className="space-y-2 text-sm text-gray-600">
-                          <p className="flex items-center">
-                            <Stethoscope className="mr-2" size={16} />
-                            <span className="font-medium">
-                              {cita.doctor_info ? cita.doctor_info.nombre_completo : 'Doctor'}
-                            </span>
-                          </p>
-                          <p className="flex items-center">
-                            <Clock className="mr-2" size={16} />
-                            {new Date(cita.fecha_hora).toLocaleTimeString('es-ES', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        </div>
-
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-sm text-gray-700">
-                            <span className="font-semibold">Motivo:</span> {cita.motivo}
-                          </p>
-                        </div>
-
-                        {cita.observaciones && (
-                          <div className="mt-2 bg-gray-50 p-2 rounded">
-                            <p className="text-xs text-gray-600">
-                              <span className="font-semibold">Observaciones:</span> {cita.observaciones}
-                            </p>
-                          </div>
-                        )}
+                        <div className="text-secondary text-sm">Motivo: {cita.motivo}</div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             )}
-
-            {/* Pestaña: Alergias y Observaciones */}
             {activeTab === 'alergias' && (
-              <div className="space-y-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Información Médica Importante</h3>
-                
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
-                  <div className="flex items-center mb-3">
-                    <div className="bg-red-500 p-2 rounded-full mr-3">
-                      <Activity className="text-white" size={24} />
-                    </div>
-                    <h4 className="text-lg font-bold text-red-800">Alergias</h4>
-                  </div>
-                  {selectedPaciente.alergias ? (
-                    <div className="bg-white p-4 rounded-lg">
-                      <p className="text-gray-800 whitespace-pre-line">{selectedPaciente.alergias}</p>
-                    </div>
-                  ) : (
-                    <div className="bg-white p-4 rounded-lg text-center">
-                      <p className="text-gray-500">No se han registrado alergias</p>
-                    </div>
-                  )}
+              <div className="space-y">
+                <div className="alert alert-danger">
+                  <strong>Alergias registradas</strong>
+                  <div style={{ marginTop: 6 }}>{selectedPaciente.alergias || 'Sin alergias registradas'}</div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
-                    <h4 className="text-lg font-bold text-blue-800 mb-3">Tipo de Sangre</h4>
-                    <div className="bg-white p-4 rounded-lg text-center">
-                      <p className="text-4xl font-bold text-blue-600">{selectedPaciente.tipo_sangre}</p>
-                    </div>
+                <div className="grid-2">
+                  <div className="card" style={{ padding: 16, textAlign: 'center' }}>
+                    <div className="info-block-label mb-4">Tipo de Sangre</div>
+                    <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--blue)' }}>{selectedPaciente.tipo_sangre}</div>
                   </div>
-
-                  <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-6">
-                    <h4 className="text-lg font-bold text-purple-800 mb-3">Seguro Médico</h4>
-                    <div className="bg-white p-4 rounded-lg text-center">
-                      <p className="text-lg font-semibold text-purple-700">
-                        {selectedPaciente.seguro_medico || 'Sin seguro registrado'}
-                      </p>
-                    </div>
+                  <div className="card" style={{ padding: 16, textAlign: 'center' }}>
+                    <div className="info-block-label mb-4">Seguro Médico</div>
+                    <div style={{ fontWeight: 600, color: 'var(--purple)' }}>{selectedPaciente.seguro_medico || 'Sin seguro'}</div>
                   </div>
                 </div>
-
-                {/* Información de contacto de emergencia */}
-                <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-6">
-                  <h4 className="text-lg font-bold text-orange-800 mb-3">Contacto de Emergencia</h4>
-                  <div className="bg-white p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-2">
-                      <span className="font-semibold">Teléfono:</span> {selectedPaciente.telefono}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-semibold">Dirección:</span> {selectedPaciente.direccion}
-                    </p>
-                  </div>
+                <div className="card" style={{ padding: 16 }}>
+                  <div className="info-block-label mb-8">Contacto de Emergencia</div>
+                  <div className="text-secondary text-sm">Tel: {selectedPaciente.telefono}</div>
+                  <div className="text-secondary text-sm mt-4">Dir: {selectedPaciente.direccion}</div>
                 </div>
               </div>
             )}
@@ -1531,215 +731,62 @@ const fetchPacientesHabitacion = async (habitacionId) => {
     );
   };
 
+  // ── CITAS ──
   const renderCitas = () => {
-    const isMedicoView = user?.rol === 'doctor' || user?.rol === 'enfermero';
-
+    const isMedico = user?.rol === 'doctor' || user?.rol === 'enfermero';
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">
-            {isMedicoView && user?.rol === 'doctor' ? 'Mis Citas' : 'Citas Médicas'}
-          </h2>
-          {user?.rol === 'doctor' && (
-            <button 
-              onClick={() => setShowModal(true)}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center hover:bg-green-700 transition-colors"
-            >
-              <Plus size={20} className="mr-2" />
-              Nueva Cita
-            </button>
-          )}
+      <div className="space-y">
+        <div className="page-header">
+          <h1 className="page-title">{isMedico && user?.rol === 'doctor' ? 'Mis Citas' : 'Citas Médicas'}</h1>
+          {user?.rol === 'doctor' && <button onClick={() => setShowModal(true)} className="btn btn-primary"><Plus size={16} /> Nueva Cita</button>}
         </div>
-
         {citas.length === 0 ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-            <Calendar className="text-gray-400 mx-auto mb-4" size={48} />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">No hay citas registradas</h3>
-            <p className="text-gray-600">
-              {user?.rol === 'doctor' 
-                ? 'No tienes citas programadas.' 
-                : 'No hay citas en el sistema.'}
-            </p>
-          </div>
+          <div className="empty-state"><Calendar className="empty-state-icon" size={40} /><h3>Sin citas</h3><p>{user?.rol === 'doctor' ? 'No tienes citas programadas.' : 'No hay citas en el sistema.'}</p></div>
         ) : (
-          <div className={`grid ${isMedicoView ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'} gap-4`}>
-            {citas.map((cita) => (
-              <div 
-                key={cita.id} 
-                className={`bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition-all cursor-pointer border-2 ${
-                  cita.estado === 'programada' ? 'border-blue-200 hover:border-blue-400' :
-                  cita.estado === 'en_curso' ? 'border-yellow-200 hover:border-yellow-400' :
-                  cita.estado === 'completada' ? 'border-green-200 hover:border-green-400' :
-                  'border-red-200 hover:border-red-400'
-                }`}
-                onClick={() => {
-                  if (user?.rol === 'doctor') {
-                    setCitaEnConsulta(cita);
-                    setActiveView('consulta');
-                  }
-                }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center">
-                    <Calendar className="text-blue-600 mr-2" size={20} />
-                    <div>
-                      <span className="text-sm font-semibold text-gray-700 block">
-                        {formatearFecha(cita.fecha_hora)}
-                      </span>
-                      <span className="text-lg font-bold text-gray-800">
-                        {new Date(cita.fecha_hora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
+          <div className={isMedico ? 'space-y' : 'grid-2'}>
+            {citas.map(cita => (
+              <div key={cita.id} className={`cita-card ${cita.estado}`} style={{ cursor: user?.rol === 'doctor' ? 'pointer' : 'default' }}
+                onClick={() => { if (user?.rol === 'doctor') { setCitaEnConsulta(cita); setActiveView('consulta'); } }}>
+                <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <div className="text-muted text-sm">{formatearFecha(cita.fecha_hora)}</div>
+                    <div className="font-semibold mt-4" style={{ fontSize: 15 }}>{cita.paciente_info.nombre} {cita.paciente_info.apellidos}</div>
+                    <div className="text-secondary text-sm">N° {cita.paciente_info.numero_historia}</div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                    cita.estado === 'programada' ? 'bg-blue-100 text-blue-800' :
-                    cita.estado === 'en_curso' ? 'bg-yellow-100 text-yellow-800' :
-                    cita.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {cita.estado}
-                  </span>
+                  <span className={`badge ${badgeEstado(cita.estado)}`}>{cita.estado}</span>
                 </div>
-                
-                <div className="mb-3 pb-3 border-b border-gray-200">
-                  <h4 className="font-semibold text-gray-800">
-                    {cita.paciente_info.nombre} {cita.paciente_info.apellidos}
-                  </h4>
-                  <p className="text-xs text-gray-600">N° Historia: {cita.paciente_info.numero_historia}</p>
+                <div className="separator" />
+                <div className="flex gap-12 text-sm text-secondary mb-8">
+                  <span>Sangre: {cita.paciente_info.tipo_sangre}</span>
+                  <span>{cita.paciente_info.telefono}</span>
                 </div>
-                
-                <div className="space-y-1 text-sm text-gray-600 mb-4">
-                  <p className="flex items-center">
-                    <Activity className="mr-2" size={16} />
-                    Sangre: {cita.paciente_info.tipo_sangre}
-                  </p>
-                  <p className="flex items-center">
-                    <Phone className="mr-2" size={16} />
-                    {cita.paciente_info.telefono}
-                  </p>
-                </div>
-
-                <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded mb-4 line-clamp-2">
-                  <span className="font-semibold">Motivo:</span> {cita.motivo}
-                </p>
-
+                <div className="info-block mb-8"><div className="info-block-label">Motivo</div><div className="info-block-val">{cita.motivo}</div></div>
                 {user?.rol === 'doctor' && cita.estado === 'programada' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cambiarEstadoCita(cita.id, 'en_curso');
-                      }}
-                      className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-semibold py-2 rounded transition-colors"
-                    >
-                      Iniciar
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cambiarEstadoCita(cita.id, 'cancelada');
-                      }}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded transition-colors"
-                    >
-                      Cancelar
-                    </button>
+                  <div className="flex gap-8" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => cambiarEstadoCita(cita.id, 'en_curso')} className="btn btn-warning btn-sm" style={{ flex: 1 }}>Iniciar</button>
+                    <button onClick={() => cambiarEstadoCita(cita.id, 'cancelada')} className="btn btn-danger btn-sm" style={{ flex: 1 }}>Cancelar</button>
                   </div>
                 )}
-                
                 {user?.rol === 'doctor' && cita.estado === 'en_curso' && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cambiarEstadoCita(cita.id, 'completada');
-                      }}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded transition-colors"
-                    >
-                      Completar
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cambiarEstadoCita(cita.id, 'cancelada');
-                      }}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                )}
-
-                {user?.rol === 'doctor' && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 text-center">
-                    <p className="text-xs text-blue-600 font-semibold">Haz clic para ver detalles completos</p>
+                  <div className="flex gap-8" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => cambiarEstadoCita(cita.id, 'completada')} className="btn btn-success btn-sm" style={{ flex: 1 }}>Completar</button>
+                    <button onClick={() => cambiarEstadoCita(cita.id, 'cancelada')} className="btn btn-danger btn-sm" style={{ flex: 1 }}>Cancelar</button>
                   </div>
                 )}
               </div>
             ))}
           </div>
         )}
-
         {showModal && canAccess('crear_cita') && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl p-6 max-w-md w-full">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Nueva Cita</h3>
-                <button onClick={() => setShowModal(false)}>
-                  <X size={24} className="text-gray-600 hover:text-gray-800" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleCreateCita} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Paciente ID</label>
-                  <input
-                    type="number"
-                    value={newCita.paciente}
-                    onChange={(e) => setNewCita({...newCita, paciente: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Doctor ID</label>
-                  <input
-                    type="number"
-                    value={newCita.doctor}
-                    onChange={(e) => setNewCita({...newCita, doctor: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha y Hora</label>
-                  <input
-                    type="datetime-local"
-                    value={newCita.fecha_hora}
-                    onChange={(e) => setNewCita({...newCita, fecha_hora: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
-                  <textarea
-                    value={newCita.motivo}
-                    onChange={(e) => setNewCita({...newCita, motivo: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                >
-                  Crear Cita
-                </button>
+          <div className="modal-overlay">
+            <div className="modal">
+              <div className="modal-header"><h2 className="modal-title">Nueva Cita</h2><button className="modal-close" onClick={() => setShowModal(false)}><X size={20} /></button></div>
+              <form onSubmit={handleCreateCita}>
+                <div className="form-group"><label className="form-label">Paciente ID</label><input className="form-control" type="number" value={newCita.paciente} onChange={e => setNewCita({ ...newCita, paciente: e.target.value })} required /></div>
+                <div className="form-group"><label className="form-label">Doctor ID</label><input className="form-control" type="number" value={newCita.doctor} onChange={e => setNewCita({ ...newCita, doctor: e.target.value })} required /></div>
+                <div className="form-group"><label className="form-label">Fecha y Hora</label><input className="form-control" type="datetime-local" value={newCita.fecha_hora} onChange={e => setNewCita({ ...newCita, fecha_hora: e.target.value })} required /></div>
+                <div className="form-group"><label className="form-label">Motivo</label><textarea className="form-control" rows="3" value={newCita.motivo} onChange={e => setNewCita({ ...newCita, motivo: e.target.value })} required /></div>
+                <button type="submit" className="btn btn-primary btn-block">Crear Cita</button>
               </form>
             </div>
           </div>
@@ -1747,406 +794,30 @@ const fetchPacientesHabitacion = async (habitacionId) => {
       </div>
     );
   };
+
+  // ── DOCTORES ──
   const renderDoctores = () => {
-    if (!canAccess('doctores')) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-          <X className="text-red-500 mx-auto mb-4" size={48} />
-          <h3 className="text-xl font-bold text-red-800 mb-2">Acceso Denegado</h3>
-          <p className="text-red-600">No tienes permisos para acceder a esta sección.</p>
-        </div>
-      );
-    }
-    if (doctores.length === 0) {
-      return (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-gray-800">Doctores</h2>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-            <Stethoscope className="text-gray-400 mx-auto mb-4" size={48} />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">No hay doctores registrados</h3>
-            <p className="text-gray-600">Aún no hay doctores en el sistema.</p>
-          </div>
-        </div>
-      );
-    }
-
-
+    if (!canAccess('doctores')) return <div className="alert alert-danger">No tienes permisos para acceder a esta sección.</div>;
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">Doctores</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {doctores.map((doctor) => (
-            <div key={doctor.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-center mb-4">
-                <div className="bg-purple-100 p-3 rounded-full mr-4">
-                  <Stethoscope className="text-purple-600" size={24} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">{doctor.nombre_completo}</h3>
-                  <p className="text-sm text-gray-600">{doctor.especialidad}</p>
-                </div>
-              </div>
-              
-              <div className="space-y-2 text-sm text-gray-600">
-                <p><strong>Licencia:</strong> {doctor.licencia_medica}</p>
-                <p><strong>Departamento:</strong> {doctor.departamento_info?.nombre || 'N/A'}</p>
-              </div>
-              
-              <div className="mt-4 pt-4 border-t">
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  doctor.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
-                  {doctor.activo ? 'Activo' : 'Inactivo'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderHabitaciones = () => {
-    if (!canAccess('habitaciones')) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-          <X className="text-red-500 mx-auto mb-4" size={48} />
-          <h3 className="text-xl font-bold text-red-800 mb-2">Acceso Denegado</h3>
-          <p className="text-red-600">No tienes permisos para acceder a esta sección.</p>
-        </div>
-      );
-    }
-
-    if (habitaciones.length === 0) {
-      return (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-gray-800">Habitaciones</h2>
-          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-            <Bed className="text-gray-400 mx-auto mb-4" size={48} />
-            <p className="text-gray-600">No hay habitaciones disponibles</p>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">Habitaciones</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {habitaciones.map((habitacion) => {
-            const capacidad = {
-              'individual': 1,
-              'doble': 2,
-              'triple': 3,
-              'uci': 1,
-              'emergencia': 1,
-            }[habitacion.tipo] || 1;
-            
-            const ocupadas = habitacion.ocupadas || 0;
-            const disponible = ocupadas < capacidad;
-            const sobrecapacidad = ocupadas > capacidad; // ⬅️ AÑADIDO
-
-            return (
-              <div 
-                key={habitacion.id}
-                onClick={() => {
-                  setSelectedHabitacion(habitacion);
-                  setActiveView('detalle-habitacion');
-                }}
-                className={`rounded-xl shadow-md p-5 cursor-pointer transition-all hover:shadow-lg ${
-                  sobrecapacidad  // ⬅️ AÑADIDO
-                    ? 'bg-orange-50 border-2 border-orange-500 hover:border-orange-700' 
-                    : disponible 
-                      ? 'bg-green-50 border-2 border-green-300 hover:border-green-500' 
-                      : 'bg-red-50 border-2 border-red-300 hover:border-red-500'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center">
-                    <Bed className={
-                      sobrecapacidad ? 'text-orange-600' :  // ⬅️ AÑADIDO
-                      disponible ? 'text-green-600' : 'text-red-600'
-                    } size={28} />
-                    <div className="ml-3">
-                      <p className="font-bold text-gray-800">Hab. {habitacion.numero}</p>
-                      <p className="text-xs text-gray-600 capitalize">{habitacion.tipo}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-2xl font-bold ${sobrecapacidad ? 'text-orange-600' : 'text-gray-800'}`}>  {/* ⬅️ MODIFICADO */}
-                      {ocupadas}/{capacidad}
-                    </p>
-                    <p className="text-xs font-semibold text-gray-600">camas</p>
-                  </div>
-                </div>
-
-                <div className="mb-3 pb-3 border-b border-gray-300">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold">Piso:</span> {habitacion.piso}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <span className="font-semibold">Depto:</span> {habitacion.departamento_info?.nombre || 'N/A'}
-                  </p>
-                </div>
-
-                {sobrecapacidad ? (  // ⬅️ AÑADIDO BLOQUE COMPLETO
-                  <div className="px-3 py-1 rounded-full text-xs font-semibold inline-block bg-orange-200 text-orange-900">
-                    ⚠️ Sobrecapacidad ({ocupadas}/{capacidad})
-                  </div>
-                ) : (
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${
-                    disponible 
-                      ? 'bg-green-200 text-green-800' 
-                      : 'bg-red-200 text-red-800'
-                  }`}>
-                    {disponible ? '✓ Disponible' : 'Llena'}
-                  </div>
-                )}
-
-                <p className="text-xs text-gray-600 mt-3 italic">Haz clic para ver detalles</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-
-const renderDetalleHabitacion = () => {
-  if (!selectedHabitacion) {
-    return null;
-  }
-
-  const capacidad = {
-    'individual': 1,
-    'doble': 2,
-    'triple': 3,
-    'uci': 1,
-    'emergencia': 1,
-  }[selectedHabitacion.tipo] || 1;
-
-  return (
-    <div className="space-y-6">
-      {/* Botón de regreso CORREGIDO */}
-      <button
-        onClick={() => {
-          setSelectedHabitacion(null);
-          setPacientesHabitacion([]); // ✅ Limpiar estado
-          setActiveView('habitaciones');
-        }}
-        className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-      >
-        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Volver a Habitaciones
-      </button>
-
-      {/* Cabecera */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Habitación {selectedHabitacion.numero}</h1>
-            <p className="text-blue-100 capitalize">Tipo: {selectedHabitacion.tipo}</p>
-          </div>
-          <div className="text-right bg-white bg-opacity-20 px-6 py-4 rounded-lg">
-            <p className="text-3xl font-bold">{pacientesHabitacion.length}/{capacidad}</p>
-            <p className="text-blue-100 text-sm">Pacientes</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Info de la habitación */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl shadow-md p-4">
-          <p className="text-sm text-gray-600">Piso</p>
-          <p className="text-2xl font-bold text-gray-800">{selectedHabitacion.piso}</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-md p-4">
-          <p className="text-sm text-gray-600">Departamento</p>
-          <p className="text-lg font-bold text-gray-800">
-            {selectedHabitacion.departamento_info?.nombre || 'N/A'}
-          </p>
-        </div>
-      </div>
-
-      {/* Lista de pacientes */}
-      {!pacientesHabitacion || pacientesHabitacion.length === 0 ? (
-        <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-          <Bed className="text-gray-400 mx-auto mb-4" size={48} />
-          <p className="text-gray-600">No hay pacientes en esta habitación</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800">
-            Pacientes Hospitalizados ({pacientesHabitacion.length})
-          </h2>
-          
-          {pacientesHabitacion.map((item, index) => (
-            <div key={item.id || index} className="bg-white rounded-xl shadow-md p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800">
-                    {item.paciente.nombre} {item.paciente.apellidos}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Nº Historia: {item.paciente.numero_historia}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-blue-600">
-                    {item.hospitalizacion.dias}
-                  </p>
-                  <p className="text-xs text-gray-600">días hospitalizados</p>
-                </div>
-              </div>
-
-              {/* Grid de información */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 pb-4 border-b">
-                <div>
-                  <p className="text-xs text-gray-600">Tipo de Sangre</p>
-                  <p className="font-bold text-gray-800">{item.paciente.tipo_sangre}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Teléfono</p>
-                  <p className="font-bold text-gray-800">{item.paciente.telefono}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Doctor</p>
-                  <p className="font-bold text-gray-800">{item.doctor.nombre}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Especialidad</p>
-                  <p className="font-bold text-gray-800">{item.doctor.especialidad}</p>
-                </div>
-              </div>
-
-              {/* Alerta de alergias */}
-              {item.paciente.alergias && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-3 mb-4 rounded">
-                  <p className="text-xs font-bold text-red-700 mb-1">⚠️ ALERGIAS</p>
-                  <p className="text-sm text-red-800 font-semibold">{item.paciente.alergias}</p>
-                </div>
-              )}
-
-              {/* Información médica */}
-              <div className="space-y-3">
-                <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded">
-                  <p className="text-xs font-bold text-blue-700 mb-1">MOTIVO DE HOSPITALIZACIÓN</p>
-                  <p className="text-sm text-gray-800">{item.hospitalizacion.motivo}</p>
-                </div>
-
-                <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded">
-                  <p className="text-xs font-bold text-green-700 mb-1">DIAGNÓSTICO</p>
-                  <p className="text-sm text-gray-800">{item.hospitalizacion.diagnostico}</p>
-                </div>
-
-                {item.ultima_consulta && (
-                  <>
-                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded">
-                      <p className="text-xs font-bold text-yellow-700 mb-1">TRATAMIENTO</p>
-                      <p className="text-sm text-gray-800">{item.ultima_consulta.tratamiento}</p>
-                    </div>
-
-                    <div className="bg-purple-50 border-l-4 border-purple-500 p-3 rounded">
-                      <p className="text-xs font-bold text-purple-700 mb-1">SÍNTOMAS ACTUALES</p>
-                      <p className="text-sm text-gray-800">{item.ultima_consulta.sintomas}</p>
-                    </div>
-
-                    <div className="bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
-                      <p className="text-xs font-bold text-gray-700 mb-1">DIAGNÓSTICO ÚLTIMO</p>
-                      <p className="text-sm text-gray-800">{item.ultima_consulta.diagnostico}</p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Fecha de ingreso */}
-              <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600">
-                <p>
-                  <span className="font-semibold">Fecha de ingreso:</span>{' '}
-                  {formatearFecha(item.hospitalizacion.fecha_ingreso)}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-  const renderHistoriasClinicas = () => {
-    return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">
-          {user?.rol === 'paciente' ? 'Mi Historial Médico' : 'Historias Clínicas'}
-        </h2>
-        
-        {historias.length === 0 ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center">
-            <FileText className="text-gray-400 mx-auto mb-4" size={48} />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">No hay historias clínicas</h3>
-            <p className="text-gray-600">
-              {user?.rol === 'paciente' 
-                ? 'Aún no tienes historias clínicas registradas.' 
-                : 'No hay historias clínicas en el sistema.'}
-            </p>
-          </div>
+      <div className="space-y">
+        <h1 className="page-title">Doctores</h1>
+        {doctores.length === 0 ? (
+          <div className="empty-state"><Stethoscope className="empty-state-icon" size={40} /><h3>Sin doctores registrados</h3></div>
         ) : (
-          <div className="space-y-4">
-            {historias.map((historia) => (
-              <div key={historia.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-                <div className="flex justify-between items-start mb-4">
+          <div className="grid-3">
+            {doctores.map(doc => (
+              <div key={doc.id} className="doctor-card">
+                <div className="doctor-card-head">
+                  <div className="doctor-avatar">{doc.usuario_info?.first_name?.[0]}{doc.usuario_info?.last_name?.[0]}</div>
                   <div>
-                    <h3 className="text-lg font-bold text-gray-800">
-                      {historia.paciente_info ? `${historia.paciente_info.nombre} ${historia.paciente_info.apellidos}` : 'Paciente'}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {formatearFecha(historia.fecha)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600">Atendido por:</p>
-                    <p className="font-semibold text-gray-800">
-                      {historia.doctor_info?.nombre_completo || 'Doctor'}
-                    </p>
+                    <div className="doctor-name">{doc.nombre_completo}</div>
+                    <div className="doctor-esp">{doc.especialidad}</div>
                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="font-semibold text-gray-700 mb-1">Diagnóstico:</h4>
-                    <p className="text-gray-600 bg-blue-50 p-3 rounded-lg">{historia.diagnostico}</p>
-                  </div>
-
-                  <div>
-                    <h4 className="font-semibold text-gray-700 mb-1">Síntomas:</h4>
-                    <p className="text-gray-600 bg-yellow-50 p-3 rounded-lg">{historia.sintomas}</p>
-                  </div>
-
-                  <div>
-                    <h4 className="font-semibold text-gray-700 mb-1">Tratamiento:</h4>
-                    <p className="text-gray-600 bg-green-50 p-3 rounded-lg">{historia.tratamiento}</p>
-                  </div>
-
-                  {historia.examenes_solicitados && (
-                    <div>
-                      <h4 className="font-semibold text-gray-700 mb-1">Exámenes Solicitados:</h4>
-                      <p className="text-gray-600 bg-purple-50 p-3 rounded-lg">{historia.examenes_solicitados}</p>
-                    </div>
-                  )}
-
-                  {historia.notas_adicionales && (
-                    <div>
-                      <h4 className="font-semibold text-gray-700 mb-1">Notas Adicionales:</h4>
-                      <p className="text-gray-600 bg-gray-50 p-3 rounded-lg">{historia.notas_adicionales}</p>
-                    </div>
-                  )}
-                </div>
+                <div className="separator" />
+                <div className="text-secondary text-sm mt-8">Licencia: {doc.licencia_medica}</div>
+                <div className="text-secondary text-sm mt-4">Depto: {doc.departamento_info?.nombre || 'N/A'}</div>
+                <div className="mt-8"><span className={`badge ${doc.activo ? 'badge-green' : 'badge-red'}`}>{doc.activo ? 'Activo' : 'Inactivo'}</span></div>
               </div>
             ))}
           </div>
@@ -2155,793 +826,396 @@ const renderDetalleHabitacion = () => {
     );
   };
 
-  const renderDashboardDoctor = () => {
-    if (!user || (user.rol !== 'doctor' && user.rol !== 'enfermero')) {
-      return null;
-    }
-
+  // ── HABITACIONES ──
+  const renderHabitaciones = () => {
+    if (!canAccess('habitaciones')) return <div className="alert alert-danger">No tienes permisos.</div>;
+    const capMap = { individual: 1, doble: 2, triple: 3, uci: 1, emergencia: 1 };
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800">
-              Bienvenido, {user.first_name || user.username}
-            </h2>
-            <p className="text-gray-600 mt-1">
-              {user.rol === 'doctor' ? 'Panel de Trabajo - Doctor' : 'Panel de Visualización - Enfermero'}
-            </p>
-          </div>
-          <div className="bg-blue-100 px-6 py-3 rounded-lg">
-            <p className="text-sm text-gray-600">Hora actual</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
-        </div>
-
-        {/* Tarjeta de citas del día */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Mis Citas de Hoy</h3>
-              <p className="text-blue-100 text-sm">
-                {obtenerFechaHoy()}
-              </p>
-            </div>
-            <div className="text-5xl font-bold opacity-30">
-              {misCitasHoy.length}
-            </div>
-          </div>
-        </div>
-
-        {/* Citas de hoy */}
-        {user.rol === 'doctor' && (
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-gray-800">Citas Programadas</h3>
-            
-            {misCitasHoy.length === 0 ? (
-              <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-                <Calendar className="text-gray-400 mx-auto mb-4" size={48} />
-                <p className="text-gray-600 text-lg">No tienes citas programadas para hoy</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {misCitasHoy.map((cita) => (
-                  <div key={cita.id} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-blue-400 transition-all hover:shadow-lg">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600 font-medium">
-                          {new Date(cita.fecha_hora).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        <h4 className="text-lg font-bold text-gray-800 mt-1">
-                          {cita.paciente_info.nombre} {cita.paciente_info.apellidos}
-                        </h4>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        cita.estado === 'programada' ? 'bg-blue-100 text-blue-800' :
-                        cita.estado === 'en_curso' ? 'bg-yellow-100 text-yellow-800' :
-                        cita.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {cita.estado}
-                      </span>
-                    </div>
-
-                    <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                      <p className="text-sm text-gray-700">
-                        <span className="font-semibold">Motivo:</span> {cita.motivo}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2 text-sm text-gray-600 mb-4">
-                      <p className="flex items-center">
-                        <Stethoscope className="mr-2" size={16} />
-                        N° Historia: {cita.paciente_info.numero_historia}
-                      </p>
-                      <p className="flex items-center">
-                        <Activity className="mr-2" size={16} />
-                        Tipo de sangre: {cita.paciente_info.tipo_sangre}
-                      </p>
-                    </div>
-
-                    {cita.estado === 'programada' && (
-                      <button
-                        onClick={() => iniciarConsulta(cita)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"
-                      >
-                        Iniciar Consulta
-                      </button>
-                    )}
-                    {cita.estado === 'en_curso' && (
-                      <button
-                        onClick={() => {
-                          setCitaEnConsulta(cita);
-                          setActiveView('consulta');
-                        }}
-                        className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 rounded-lg transition-colors"
-                      >
-                        Continuar Consulta
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Acceso rápido */}
-        {user.rol === 'doctor' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={() => setActiveView('pacientes')}
-              className="bg-white border-2 border-blue-200 hover:border-blue-600 rounded-xl p-6 transition-all hover:shadow-lg"
-            >
-              <Users className="text-blue-600 mx-auto mb-3" size={32} />
-              <p className="font-semibold text-gray-800">Mis Pacientes</p>
-              <p className="text-xs text-gray-600 mt-1">Del departamento</p>
-            </button>
-
-            <button
-              onClick={() => setActiveView('hospitalizacion')}
-              className="bg-white border-2 border-purple-200 hover:border-purple-600 rounded-xl p-6 transition-all hover:shadow-lg"
-            >
-              <Bed className="text-purple-600 mx-auto mb-3" size={32} />
-              <p className="font-semibold text-gray-800">Hospitalizaciones</p>
-              <p className="text-xs text-gray-600 mt-1">Activos</p>
-            </button>
-
-            <button
-              onClick={() => setActiveView('medicamentos')}
-              className="bg-white border-2 border-green-200 hover:border-green-600 rounded-xl p-6 transition-all hover:shadow-lg"
-            >
-              <Activity className="text-green-600 mx-auto mb-3" size={32} />
-              <p className="font-semibold text-gray-800">Medicamentos</p>
-              <p className="text-xs text-gray-600 mt-1">Disponibles</p>
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderConsulta = () => {
-    if (!citaEnConsulta) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-          <p className="text-red-600">No hay consulta en curso</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        {/* Encabezado */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              setCitaEnConsulta(null);
-              setShowFormConsulta(false);
-              setActiveView('dashboard');
-            }}
-            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Volver
-          </button>
-          <h2 className="text-2xl font-bold text-gray-800">Consulta en Curso</h2>
-          <div></div>
-        </div>
-
-        {/* Información del paciente */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-          <div className="flex items-center space-x-4">
-            <div className="bg-white bg-opacity-20 p-4 rounded-full">
-              <User size={32} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold">
-                {citaEnConsulta.paciente_info.nombre} {citaEnConsulta.paciente_info.apellidos}
-              </h3>
-              <p className="text-blue-100">N° Historia: {citaEnConsulta.paciente_info.numero_historia}</p>
-              <p className="text-blue-100">Tipo de sangre: {citaEnConsulta.paciente_info.tipo_sangre}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Alergias destacadas */}
-        {citaEnConsulta.paciente_info.alergias && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4">
-            <div className="flex items-center mb-2">
-              <Activity className="text-red-600 mr-2" size={20} />
-              <p className="font-bold text-red-800">ALERGIAS REGISTRADAS</p>
-            </div>
-            <p className="text-red-700 font-semibold">{citaEnConsulta.paciente_info.alergias}</p>
-          </div>
-        )}
-
-        {/* Formulario de consulta */}
-        {!citaEnConsulta.historia_id ? (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Registrar Nueva Consulta</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Síntomas</label>
-                <textarea
-                  value={nuevaHistoria.sintomas}
-                  onChange={(e) => setNuevaHistoria({...nuevaHistoria, sintomas: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="4"
-                  placeholder="Describe los síntomas del paciente..."
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Diagnóstico</label>
-                <textarea
-                  value={nuevaHistoria.diagnostico}
-                  onChange={(e) => setNuevaHistoria({...nuevaHistoria, diagnostico: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="4"
-                  placeholder="Diagnóstico del paciente..."
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tratamiento</label>
-                <textarea
-                  value={nuevaHistoria.tratamiento}
-                  onChange={(e) => setNuevaHistoria({...nuevaHistoria, tratamiento: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                  placeholder="Tratamiento recomendado..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Exámenes Solicitados</label>
-                <textarea
-                  value={nuevaHistoria.examenes_solicitados}
-                  onChange={(e) => setNuevaHistoria({...nuevaHistoria, examenes_solicitados: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="2"
-                  placeholder="Exámenes o pruebas a realizar..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Notas Adicionales</label>
-                <textarea
-                  value={nuevaHistoria.notas_adicionales}
-                  onChange={(e) => setNuevaHistoria({...nuevaHistoria, notas_adicionales: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="2"
-                  placeholder="Anotaciones adicionales..."
-                />
-              </div>
-
-              <button
-                onClick={guardarHistoriaClinica}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors"
-              >
-                Guardar Historia Clínica
-              </button>
-            </div>
-          </div>
+      <div className="space-y">
+        <h1 className="page-title">Habitaciones</h1>
+        {habitaciones.length === 0 ? (
+          <div className="empty-state"><Bed className="empty-state-icon" size={40} /><h3>Sin habitaciones</h3></div>
         ) : (
-          <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center">
-            <div className="flex items-center justify-center mb-3">
-              <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <p className="text-green-800 font-semibold mb-4">Historia clínica guardada correctamente</p>
-            <button
-              onClick={() => setShowFormPrescripcion(true)}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg transition-colors"
-            >
-              Recetar Medicamentos
-            </button>
-          </div>
-        )}
-
-        {/* Formulario de prescripción */}
-        {citaEnConsulta.historia_id && showFormPrescripcion && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Recetar Medicamento</h3>
-            
-            {alertaMedicamento && (
-              <div className={`mb-4 p-4 rounded-lg ${
-                alertaMedicamento.alerta 
-                  ? 'bg-red-50 border-2 border-red-300' 
-                  : 'bg-green-50 border-2 border-green-300'
-              }`}>
-                <p className={`font-semibold ${
-                  alertaMedicamento.alerta ? 'text-red-800' : 'text-green-800'
-                }`}>
-                  {alertaMedicamento.mensaje}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Medicamento</label>
-                <select
-                  value={nuevaPrescripcion.medicamento_id}
-                  onChange={(e) => {
-                    setNuevaPrescripcion({...nuevaPrescripcion, medicamento_id: e.target.value});
-                    verificarAlergias(e.target.value);
-                  }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">-- Selecciona un medicamento --</option>
-                  {medicamentosDisponibles.map(med => (
-                    <option key={med.id} value={med.id}>
-                      {med.nombre} - {med.presentacion}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Dosis</label>
-                  <input
-                    type="text"
-                    value={nuevaPrescripcion.dosis}
-                    onChange={(e) => setNuevaPrescripcion({...nuevaPrescripcion, dosis: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ej: 500mg"
-                    required
-                  />
+          <div className="grid-4">
+            {habitaciones.map(hab => {
+              const cap = capMap[hab.tipo] || 1;
+              const ocu = hab.ocupadas || 0;
+              const pct = Math.min((ocu / cap) * 100, 100);
+              const estado = ocu >= cap ? 'llena' : ocu > 0 ? 'parcial' : 'disponible';
+              const fillColor = estado === 'llena' ? 'var(--red)' : estado === 'parcial' ? 'var(--blue)' : 'var(--green)';
+              return (
+                <div key={hab.id} className={`hab-card ${estado}`} onClick={() => { setSelectedHabitacion(hab); setActiveView('detalle-habitacion'); }}>
+                  <div className="hab-card-num">Hab. {hab.numero}</div>
+                  <div className="hab-card-tipo">{hab.tipo} · Piso {hab.piso}</div>
+                  <div className="hab-progress">
+                    <div className="hab-progress-fill" style={{ width: `${pct}%`, background: fillColor }} />
+                  </div>
+                  <div className="hab-card-info">
+                    <span>{ocu}/{cap} camas</span>
+                    <span className={`badge ${estado === 'llena' ? 'badge-red' : estado === 'parcial' ? 'badge-blue' : 'badge-green'}`}>{estado === 'llena' ? 'Llena' : estado === 'parcial' ? 'Parcial' : 'Libre'}</span>
+                  </div>
+                  <div className="text-muted text-sm mt-4" style={{ fontSize: 11 }}>{hab.departamento_info?.nombre}</div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Frecuencia</label>
-                  <input
-                    type="text"
-                    value={nuevaPrescripcion.frecuencia}
-                    onChange={(e) => setNuevaPrescripcion({...nuevaPrescripcion, frecuencia: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ej: 3 veces al día"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Duración</label>
-                <input
-                  type="text"
-                  value={nuevaPrescripcion.duracion}
-                  onChange={(e) => setNuevaPrescripcion({...nuevaPrescripcion, duracion: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ej: 7 días"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Instrucciones</label>
-                <textarea
-                  value={nuevaPrescripcion.instrucciones}
-                  onChange={(e) => setNuevaPrescripcion({...nuevaPrescripcion, instrucciones: e.target.value})}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows="2"
-                  placeholder="Instrucciones especiales..."
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={guardarPrescripcion}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors"
-                >
-                  Recetar Medicamento
-                </button>
-                <button
-                  onClick={() => {
-                    setNuevaPrescripcion({
-                      medicamento_id: '',
-                      dosis: '',
-                      frecuencia: '',
-                      duracion: '',
-                      instrucciones: ''
-                    });
-                    setAlertaMedicamento(null);
-                  }}
-                  className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 rounded-lg transition-colors"
-                >
-                  Limpiar
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
-        )}
-
-        {/* Botón finalizar consulta */}
-        {citaEnConsulta.historia_id && (
-          <button
-            onClick={completarConsulta}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors"
-          >
-            Finalizar Consulta
-          </button>
         )}
       </div>
     );
   };
 
-  const renderHospitalizacion = () => {
+  // ── DETALLE HABITACION ──
+  const renderDetalleHabitacion = () => {
+    if (!selectedHabitacion) return null;
+    const capMap = { individual: 1, doble: 2, triple: 3, uci: 1, emergencia: 1 };
+    const cap = capMap[selectedHabitacion.tipo] || 1;
     return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">Gestión de Hospitalizaciones</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-            <Bed className="mb-2" size={32} />
-            <p className="text-blue-100 text-sm">Hospitalizaciones Activas</p>
-            <p className="text-4xl font-bold">{hospitalizacionesActivas.length}</p>
-          </div>
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-            <Activity className="mb-2" size={32} />
-            <p className="text-green-100 text-sm">Pacientes Internados</p>
-            <p className="text-4xl font-bold">{hospitalizacionesActivas.filter(h => h.estado === 'activa').length}</p>
-          </div>
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-            <Calendar className="mb-2" size={32} />
-            <p className="text-purple-100 text-sm">Altas Realizadas</p>
-            <p className="text-4xl font-bold">{hospitalizacionesActivas.filter(h => h.estado === 'alta').length}</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="text-xl font-bold text-gray-800">Hospitalizaciones Activas</h3>
-          
-          {hospitalizacionesActivas.filter(h => h.estado === 'activa').length === 0 ? (
-            <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-              <Bed className="text-gray-400 mx-auto mb-4" size={48} />
-              <p className="text-gray-600">No hay pacientes hospitalizados actualmente</p>
+      <div className="space-y">
+        <button className="back-btn" onClick={() => { setSelectedHabitacion(null); setPacientesHabitacion([]); setActiveView('habitaciones'); }}>← Volver a Habitaciones</button>
+        <div className="hero-banner">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1>Habitación {selectedHabitacion.numero}</h1>
+              <p>{selectedHabitacion.tipo} · Piso {selectedHabitacion.piso} · {selectedHabitacion.departamento_info?.nombre}</p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {hospitalizacionesActivas.filter(h => h.estado === 'activa').map((hospitalizacion) => (
-                <div key={hospitalizacion.id} className="bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-blue-400 transition-all">
-                  <div className="flex items-start justify-between mb-4">
+            <div style={{ textAlign: 'right', background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '10px 20px' }}>
+              <div style={{ fontSize: 28, fontWeight: 700 }}>{pacientesHabitacion.length}/{cap}</div>
+              <div style={{ fontSize: 12, color: '#a8c0d4' }}>Pacientes</div>
+            </div>
+          </div>
+        </div>
+        {!pacientesHabitacion?.length ? (
+          <div className="empty-state"><Bed className="empty-state-icon" size={40} /><h3>Sin pacientes en esta habitación</h3></div>
+        ) : (
+          <>
+            <h2 className="page-title">Pacientes Hospitalizados ({pacientesHabitacion.length})</h2>
+            <div className={pacientesHabitacion.length >= 2 ? 'grid-2' : 'space-y'}>
+              {pacientesHabitacion.map((item, idx) => (
+                <div key={item.id || idx} className="hosp-card">
+                  <div className="hosp-card-header">
                     <div>
-                      <h4 className="text-lg font-bold text-gray-800">
-                        {hospitalizacion.paciente_info.nombre} {hospitalizacion.paciente_info.apellidos}
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        Habitación: {hospitalizacion.habitacion_info.numero} - Piso {hospitalizacion.habitacion_info.piso}
-                      </p>
+                      <div className="font-semibold" style={{ fontSize: 15 }}>{item.paciente.nombre} {item.paciente.apellidos}</div>
+                      <div className="text-secondary text-sm">N° {item.paciente.numero_historia}</div>
                     </div>
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-                      En tratamiento
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-xs text-gray-600">Tipo de Sangre</p>
-                      <p className="text-lg font-bold text-gray-800">{hospitalizacion.paciente_info.tipo_sangre}</p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-xs text-gray-600">Fecha Ingreso</p>
-                      <p className="text-sm font-semibold text-gray-800">
-                        {formatearFecha(hospitalizacion.fecha_ingreso)}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-xs text-gray-600">Días Hospitalizados</p>
-                      <p className="text-lg font-bold text-gray-800">{hospitalizacion.dias_hospitalizacion}</p>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <p className="text-xs text-gray-600">Doctor Responsable</p>
-                      <p className="text-sm font-semibold text-gray-800">
-                        {hospitalizacion.doctor_info?.nombre_completo || 'N/A'}
-                      </p>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--blue)' }}>{item.hospitalizacion.dias}</div>
+                      <div className="text-muted text-sm">días</div>
                     </div>
                   </div>
-
-                  <div className="space-y-2 mb-4">
-                    <p className="text-sm">
-                      <span className="font-semibold text-gray-700">Motivo:</span>
-                      <span className="text-gray-600 ml-2">{hospitalizacion.motivo}</span>
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-semibold text-gray-700">Diagnóstico:</span>
-                      <span className="text-gray-600 ml-2">{hospitalizacion.diagnostico}</span>
-                    </p>
+                  <div className="grid-4" style={{ gap: 8, marginBottom: 12 }}>
+                    {[['Sangre', item.paciente.tipo_sangre], ['Tel.', item.paciente.telefono], ['Doctor', item.doctor.nombre], ['Esp.', item.doctor.especialidad]].map(([l, v]) => (
+                      <div key={l} className="info-block"><div className="info-block-label">{l}</div><div className="info-block-val" style={{ fontSize: 12 }}>{v}</div></div>
+                    ))}
                   </div>
-
-                  {user.rol === 'doctor' && (
-                    <button
-                      onClick={() => {
-                        // Aquí irá la funcionalidad de dar alta
-                        alert('Funcionalidad de dar alta disponible próximamente');
-                      }}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition-colors"
-                    >
-                      Dar de Alta
-                    </button>
-                  )}
+                  {item.paciente.alergias && <div className="alert alert-danger mb-8"><strong>⚠ Alergias:</strong> {item.paciente.alergias}</div>}
+                  <div className="mr-block mr-diagnostico mb-4"><div className="mr-block-label">Motivo hospitalización</div><div className="mr-block-text">{item.hospitalizacion.motivo}</div></div>
+                  <div className="mr-block mr-tratamiento mb-4"><div className="mr-block-label">Diagnóstico</div><div className="mr-block-text">{item.hospitalizacion.diagnostico}</div></div>
+                  {item.ultima_consulta && <>
+                    <div className="mr-block mr-sintomas mb-4"><div className="mr-block-label">Tratamiento</div><div className="mr-block-text">{item.ultima_consulta.tratamiento}</div></div>
+                  </>}
+                  <div className="separator" />
+                  <div className="text-muted text-sm">Ingreso: {formatearFecha(item.hospitalizacion.fecha_ingreso)}</div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     );
   };
 
-  const renderMedicamentos = () => {
-    return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">Medicamentos Disponibles</h2>
+  // ── HISTORIAS CLINICAS ──
+  const renderHistoriasClinicas = () => (
+    <div className="space-y">
+      <h1 className="page-title">{user?.rol === 'paciente' ? 'Mi Historial Médico' : 'Historias Clínicas'}</h1>
+      {historias.length === 0 ? (
+        <div className="empty-state"><FileText className="empty-state-icon" size={40} /><h3>Sin historias clínicas</h3></div>
+      ) : historias.map(h => (
+        <div key={h.id} className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">{h.paciente_info ? `${h.paciente_info.nombre} ${h.paciente_info.apellidos}` : 'Paciente'}</div>
+              <div className="text-secondary text-sm">{formatearFecha(h.fecha)}</div>
+            </div>
+            <div className="text-right"><div className="text-muted text-sm">Atendido por</div><div className="font-semibold">{h.doctor_info?.nombre_completo || 'Doctor'}</div></div>
+          </div>
+          <div className="card-body space-y">
+            <div className="mr-block mr-diagnostico"><div className="mr-block-label">Diagnóstico</div><div className="mr-block-text">{h.diagnostico}</div></div>
+            <div className="mr-block mr-sintomas"><div className="mr-block-label">Síntomas</div><div className="mr-block-text">{h.sintomas}</div></div>
+            <div className="mr-block mr-tratamiento"><div className="mr-block-label">Tratamiento</div><div className="mr-block-text">{h.tratamiento}</div></div>
+            {h.examenes_solicitados && <div className="mr-block mr-examenes"><div className="mr-block-label">Exámenes</div><div className="mr-block-text">{h.examenes_solicitados}</div></div>}
+            {h.notas_adicionales && <div className="mr-block mr-notas"><div className="mr-block-label">Notas</div><div className="mr-block-text">{h.notas_adicionales}</div></div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {medicamentosDisponibles.map((medicamento) => (
-            <div key={medicamento.id} className="bg-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-400 transition-all hover:shadow-lg">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-gray-800">{medicamento.nombre}</h3>
-                  <p className="text-xs text-gray-600 mt-1">{medicamento.presentacion}</p>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                  medicamento.stock > 20 ? 'bg-green-100 text-green-800' :
-                  medicamento.stock > 10 ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  Stock: {medicamento.stock}
-                </span>
+  // ── MEDICAMENTOS ──
+  const renderMedicamentos = () => (
+    <div className="space-y">
+      <h1 className="page-title">Medicamentos Disponibles</h1>
+      {medicamentosDisponibles.length === 0 ? (
+        <div className="empty-state"><Activity className="empty-state-icon" size={40} /><h3>Sin medicamentos</h3></div>
+      ) : (
+        <div className="grid-3">
+          {medicamentosDisponibles.map(m => (
+            <div key={m.id} className="med-card">
+              <div className="med-card-header">
+                <div><div className="med-name">{m.nombre}</div><div className="med-pres">{m.presentacion}</div></div>
+                <span className={`badge ${m.stock > 20 ? 'badge-green' : m.stock > 10 ? 'badge-yellow' : 'badge-red'}`}>Stock: {m.stock}</span>
               </div>
-
-              <div className="space-y-2 text-sm text-gray-600 mb-3">
-                <p>
-                  <span className="font-semibold">P. Activo:</span> {medicamento.principio_activo}
-                </p>
-                {medicamento.precio > 0 && (
-                  <p>
-                    <span className="font-semibold">Precio:</span> ${medicamento.precio}
-                  </p>
-                )}
-                
-              </div>
-
-              {medicamento.descripcion && (
-                <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                  {medicamento.descripcion}
-                </p>
-              )}
-
-              <div className="pt-3 border-t border-gray-200">
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  medicamento.activo ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {medicamento.activo ? 'Disponible' : 'Descontinuado'}
-                </span>
-              </div>
+              <div className="separator" />
+              <div className="text-secondary text-sm">P. Activo: {m.principio_activo}</div>
+              {m.precio > 0 && <div className="text-secondary text-sm mt-4">Precio: {m.precio}€</div>}
+              {m.descripcion && <div className="text-muted text-sm mt-4" style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{m.descripcion}</div>}
+              <div className="mt-8"><span className={`badge ${m.activo ? 'badge-blue' : 'badge-gray'}`}>{m.activo ? 'Disponible' : 'Descontinuado'}</span></div>
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
 
-        {medicamentosDisponibles.length === 0 && (
-          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
-            <Activity className="text-gray-400 mx-auto mb-4" size={48} />
-            <p className="text-gray-600">No hay medicamentos disponibles</p>
+  // ── HOSPITALIZACION ──
+  const renderHospitalizacion = () => (
+    <div className="space-y">
+      <h1 className="page-title">Gestión de Hospitalizaciones</h1>
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+        <StatCard title="Total" value={hospitalizacionesActivas.length} color="var(--blue)" />
+        <StatCard title="Activas" value={hospitalizacionesActivas.filter(h => h.estado === 'activa').length} color="var(--green)" />
+        <StatCard title="Altas realizadas" value={hospitalizacionesActivas.filter(h => h.estado === 'alta').length} color="var(--purple)" />
+      </div>
+      <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Hospitalizaciones Activas</h2>
+      {hospitalizacionesActivas.filter(h => h.estado === 'activa').length === 0 ? (
+        <div className="empty-state"><Bed className="empty-state-icon" size={40} /><h3>Sin pacientes hospitalizados</h3></div>
+      ) : hospitalizacionesActivas.filter(h => h.estado === 'activa').map(h => (
+        <div key={h.id} className="hosp-card">
+          <div className="hosp-card-header">
+            <div>
+              <div className="font-semibold" style={{ fontSize: 15 }}>{h.paciente_info.nombre} {h.paciente_info.apellidos}</div>
+              <div className="text-secondary text-sm">Hab. {h.habitacion_info.numero} · Piso {h.habitacion_info.piso}</div>
+            </div>
+            <span className="badge badge-blue">En tratamiento</span>
+          </div>
+          <div className="grid-4" style={{ gap: 8, marginBottom: 12 }}>
+            {[['Sangre', h.paciente_info.tipo_sangre], ['Ingreso', formatearFecha(h.fecha_ingreso)], ['Días', h.dias_hospitalizacion], ['Doctor', h.doctor_info?.nombre_completo || 'N/A']].map(([l, v]) => (
+              <div key={l} className="info-block"><div className="info-block-label">{l}</div><div className="info-block-val" style={{ fontSize: 12 }}>{v}</div></div>
+            ))}
+          </div>
+          <div className="mr-block mr-diagnostico mb-4"><div className="mr-block-label">Motivo</div><div className="mr-block-text">{h.motivo}</div></div>
+          <div className="mr-block mr-sintomas"><div className="mr-block-label">Diagnóstico</div><div className="mr-block-text">{h.diagnostico}</div></div>
+          {user.rol === 'doctor' && (
+            <div className="mt-12"><button onClick={() => handleDarAlta(h.id)} className="btn btn-success btn-block">Dar de Alta</button></div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ── CONSULTA ──
+  const renderConsulta = () => {
+    if (!citaEnConsulta) return <div className="alert alert-danger">No hay consulta en curso.</div>;
+    return (
+      <div className="space-y">
+        <div className="flex justify-between items-center">
+          <button className="back-btn" onClick={() => { setCitaEnConsulta(null); setShowFormConsulta(false); setActiveView('dashboard'); }}>← Volver</button>
+          <h1 className="page-title">Consulta en Curso</h1>
+          <div />
+        </div>
+        <div className="hero-banner">
+          <div className="flex items-center gap-12">
+            <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '50%', padding: 14 }}><User size={32} color="#fff" /></div>
+            <div>
+              <h1>{citaEnConsulta.paciente_info.nombre} {citaEnConsulta.paciente_info.apellidos}</h1>
+              <div className="hero-meta">
+                <span className="hero-meta-item">N° Historia: <strong>{citaEnConsulta.paciente_info.numero_historia}</strong></span>
+                <span className="hero-meta-item">Sangre: <strong>{citaEnConsulta.paciente_info.tipo_sangre}</strong></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        {citaEnConsulta.paciente_info.alergias && <div className="alert alert-danger"><strong>⚠ ALERGIAS REGISTRADAS:</strong> {citaEnConsulta.paciente_info.alergias}</div>}
+
+        {!citaEnConsulta.historia_id ? (
+          <div className="card">
+            <div className="card-header"><span className="card-title">Registrar Nueva Consulta</span></div>
+            <div className="card-body space-y">
+              {[['sintomas','Síntomas','Describe los síntomas...'], ['diagnostico','Diagnóstico','Diagnóstico del paciente...'], ['tratamiento','Tratamiento','Tratamiento recomendado...'], ['examenes_solicitados','Exámenes Solicitados','Pruebas a realizar...'], ['notas_adicionales','Notas Adicionales','Anotaciones...']].map(([key, lbl, ph]) => (
+                <div key={key} className="form-group">
+                  <label className="form-label">{lbl}</label>
+                  <textarea className="form-control" rows={key === 'sintomas' || key === 'diagnostico' ? 3 : 2} placeholder={ph} value={nuevaHistoria[key]} onChange={e => setNuevaHistoria({ ...nuevaHistoria, [key]: e.target.value })} />
+                </div>
+              ))}
+              <button onClick={guardarHistoriaClinica} className="btn btn-primary btn-block">Guardar Historia Clínica</button>
+            </div>
+          </div>
+        ) : (
+          <div className="alert alert-success">✓ Historia clínica guardada correctamente.
+            <button onClick={() => setShowFormPrescripcion(true)} className="btn btn-success btn-sm" style={{ marginLeft: 12 }}>Recetar Medicamentos</button>
+          </div>
+        )}
+
+        {citaEnConsulta.historia_id && showFormPrescripcion && (
+          <div className="card">
+            <div className="card-header"><span className="card-title">Recetar Medicamento</span></div>
+            <div className="card-body space-y">
+              {alertaMedicamento && <div className={`alert ${alertaMedicamento.alerta ? 'alert-danger' : 'alert-success'}`}>{alertaMedicamento.mensaje}</div>}
+              <div className="form-group">
+                <label className="form-label">Medicamento</label>
+                <select className="form-control" value={nuevaPrescripcion.medicamento_id} onChange={e => { setNuevaPrescripcion({ ...nuevaPrescripcion, medicamento_id: e.target.value }); verificarAlergias(e.target.value); }} required>
+                  <option value="">-- Selecciona --</option>
+                  {medicamentosDisponibles.map(m => <option key={m.id} value={m.id}>{m.nombre} — {m.presentacion}</option>)}
+                </select>
+              </div>
+              <div className="form-grid-2">
+                <div className="form-group"><label className="form-label">Dosis</label><input className="form-control" placeholder="Ej: 500mg" value={nuevaPrescripcion.dosis} onChange={e => setNuevaPrescripcion({ ...nuevaPrescripcion, dosis: e.target.value })} /></div>
+                <div className="form-group"><label className="form-label">Frecuencia</label><input className="form-control" placeholder="Ej: 3 veces al día" value={nuevaPrescripcion.frecuencia} onChange={e => setNuevaPrescripcion({ ...nuevaPrescripcion, frecuencia: e.target.value })} /></div>
+              </div>
+              <div className="form-group"><label className="form-label">Duración</label><input className="form-control" placeholder="Ej: 7 días" value={nuevaPrescripcion.duracion} onChange={e => setNuevaPrescripcion({ ...nuevaPrescripcion, duracion: e.target.value })} /></div>
+              <div className="form-group"><label className="form-label">Instrucciones</label><textarea className="form-control" rows="2" value={nuevaPrescripcion.instrucciones} onChange={e => setNuevaPrescripcion({ ...nuevaPrescripcion, instrucciones: e.target.value })} /></div>
+              <div className="flex gap-8">
+                <button onClick={guardarPrescripcion} className="btn btn-success" style={{ flex: 1 }}>Recetar</button>
+                <button onClick={() => { setNuevaPrescripcion({ medicamento_id: '', dosis: '', frecuencia: '', duracion: '', instrucciones: '' }); setAlertaMedicamento(null); }} className="btn btn-outline" style={{ flex: 1 }}>Limpiar</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {citaEnConsulta.historia_id && (
+          <div className="space-y">
+            {!showFormDerivacion ? (
+              <button onClick={() => setShowFormDerivacion(true)} className="btn btn-purple btn-block">Derivar a Especialista</button>
+            ) : (
+              <div className="card">
+                <div className="card-header"><span className="card-title">Derivar a Especialista</span></div>
+                <div className="card-body">
+                  <form onSubmit={handleDerivar} className="space-y">
+                    <div className="form-group">
+                      <label className="form-label">Departamento</label>
+                      <select className="form-control" value={nuevaDerivacion.departamento} onChange={e => setNuevaDerivacion({ ...nuevaDerivacion, departamento: e.target.value })} required>
+                        <option value="">-- Selecciona departamento --</option>
+                        {departamentos.filter(d => d.nombre !== 'Medicina General' && d.activo).map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group"><label className="form-label">Fecha y Hora</label><input className="form-control" type="datetime-local" min={new Date().toISOString().slice(0, 16)} value={nuevaDerivacion.fecha_hora} onChange={e => setNuevaDerivacion({ ...nuevaDerivacion, fecha_hora: e.target.value })} required /></div>
+                    <div className="form-group"><label className="form-label">Motivo de la derivación</label><textarea className="form-control" rows="3" value={nuevaDerivacion.motivo} onChange={e => setNuevaDerivacion({ ...nuevaDerivacion, motivo: e.target.value })} required /></div>
+                    <div className="flex gap-8">
+                      <button type="submit" className="btn btn-purple" style={{ flex: 1 }}>Confirmar Derivación</button>
+                      <button type="button" onClick={() => setShowFormDerivacion(false)} className="btn btn-outline" style={{ flex: 1 }}>Cancelar</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+            <button onClick={completarConsulta} className="btn btn-danger btn-block">Finalizar Consulta</button>
           </div>
         )}
       </div>
     );
   };
 
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Activity className="text-blue-600 mr-3" size={32} />
-              <span className="text-xl font-bold text-gray-800">Hospital Medac</span>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setActiveView('dashboard')}
-                className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                  activeView === 'dashboard' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Home size={18} className="mr-2" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </button>
-              
-              {/* Mostrar diferentes menús según el rol */}
-              {user?.rol === 'doctor' && (
-                <>
-                  <button
-                    onClick={() => setActiveView('consulta')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'consulta' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Stethoscope size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Consulta</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveView('hospitalizacion')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'hospitalizacion' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Bed size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Hospitalización</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveView('medicamentos')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'medicamentos' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Activity size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Medicamentos</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveView('pacientes')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'pacientes' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Users size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Pacientes</span>
-                  </button>
-                </>
-              )}
-
-              {user?.rol === 'enfermero' && (
-                <>
-                  <button
-                    onClick={() => setActiveView('pacientes')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'pacientes' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Users size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Pacientes</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveView('hospitalizacion')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'hospitalizacion' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Bed size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Hospitalización</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveView('medicamentos')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'medicamentos' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Activity size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Medicamentos</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveView('citas')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'citas' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Calendar size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Citas</span>
-                  </button>
-                </>
-              )}
-
-              {user?.rol === 'admin' && (
-                <>
-                  <button
-                    onClick={() => setActiveView('pacientes')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'pacientes' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Users size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Pacientes</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => setActiveView('citas')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'citas' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Calendar size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Citas</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => setActiveView('doctores')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'doctores' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Stethoscope size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Doctores</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => setActiveView('habitaciones')}
-                    className={`px-4 py-2 rounded-lg flex items-center transition-colors ${
-                      activeView === 'habitaciones' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Bed size={18} className="mr-2" />
-                    <span className="hidden sm:inline">Habitaciones</span>
-                  </button>
-                </>
-              )}
-              <div className="flex items-center text-gray-700 px-3">
-                <User size={18} className="mr-2" />
-                <span className="hidden md:inline">{user?.username}</span>
+  // ── MIS CITAS PACIENTE ──
+  const renderMisCitas = () => (
+    <div className="space-y">
+      <div className="page-header">
+        <h1 className="page-title">Mis Citas</h1>
+        <button onClick={() => setShowModalCitaPaciente(true)} className="btn btn-primary"><Plus size={16} /> Solicitar Cita</button>
+      </div>
+      {misCitas.length === 0 ? (
+        <div className="empty-state"><Calendar className="empty-state-icon" size={40} /><h3>Sin citas registradas</h3><p>Solicita una cita con tu médico de cabecera.</p></div>
+      ) : (
+        <div className="grid-2">
+          {misCitas.map(cita => (
+            <div key={cita.id} className={`cita-card ${cita.estado}`}>
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <div className="text-muted text-sm">{formatearFecha(cita.fecha_hora)}</div>
+                  <div className="font-semibold mt-4">{cita.doctor_info?.nombre_completo || 'Médico de cabecera'}</div>
+                  <div className="text-secondary text-sm">{cita.doctor_info?.departamento_info?.nombre}</div>
+                </div>
+                <span className={`badge ${badgeEstado(cita.estado)}`}>{cita.estado}</span>
               </div>
-              
-              <button
-                onClick={handleLogout}
-                className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors"
-                title="Cerrar Sesión"
-              >
-                <LogOut size={18} />
-              </button>
+              <div className="info-block mb-8"><div className="info-block-label">Motivo</div><div className="info-block-val">{cita.motivo}</div></div>
+              {cita.estado === 'programada' && <button onClick={() => handleCancelarCitaPaciente(cita.id)} className="btn btn-danger btn-block btn-sm">Cancelar cita</button>}
             </div>
+          ))}
+        </div>
+      )}
+      {showModalCitaPaciente && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header"><h2 className="modal-title">Solicitar Cita</h2><button className="modal-close" onClick={() => setShowModalCitaPaciente(false)}><X size={20} /></button></div>
+            <div className="alert alert-info mb-12">La cita se asignará automáticamente a tu médico de cabecera.</div>
+            <form onSubmit={handleSolicitarCita}>
+              <div className="form-group"><label className="form-label">Fecha y Hora</label><input className="form-control" type="datetime-local" min={new Date().toISOString().slice(0, 16)} value={nuevaCitaPaciente.fecha_hora} onChange={e => setNuevaCitaPaciente({ ...nuevaCitaPaciente, fecha_hora: e.target.value })} required /></div>
+              <div className="form-group"><label className="form-label">Motivo de la consulta</label><textarea className="form-control" rows="3" placeholder="Describe brevemente el motivo..." value={nuevaCitaPaciente.motivo} onChange={e => setNuevaCitaPaciente({ ...nuevaCitaPaciente, motivo: e.target.value })} required /></div>
+              <button type="submit" className="btn btn-primary btn-block">Solicitar Cita</button>
+            </form>
           </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── RENDER PRINCIPAL ──
+  return (
+    <div className="app-shell">
+      <nav className="navbar">
+        <div className="navbar-brand">
+          <div className="navbar-logo"><Activity size={16} color="#fff" /></div>
+          <span className="navbar-title">Hospital Medac</span>
+        </div>
+        <div className="navbar-links">
+          <button className={`nav-link ${activeView === 'dashboard' ? 'active' : ''}`} onClick={() => navTo('dashboard')}><Home size={15} /> Dashboard</button>
+          {links.map(l => (
+            <button key={l.view} className={`nav-link ${activeView === l.view ? 'active' : ''}`} onClick={() => navTo(l.view)}>{l.icon} {l.label}</button>
+          ))}
+        </div>
+        <div className="navbar-right">
+          <div className="nav-user"><User size={13} /> {user?.username} · {user?.rol}</div>
+          <button className="btn-logout" onClick={handleLogout}><LogOut size={13} /> Salir</button>
+          <button className="nav-hamburger" onClick={() => setNavOpen(o => !o)}><Menu size={22} /></button>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  {user?.rol === 'doctor' || user?.rol === 'enfermero' ? (
-    <>
-      {activeView === 'dashboard' && user?.rol === 'doctor' && renderDashboardDoctor()}
-      {activeView === 'dashboard' && user?.rol === 'enfermero' && renderDashboardDoctor()}
-      {activeView === 'consulta' && user?.rol === 'doctor' && renderConsulta()}
-      {activeView === 'hospitalizacion' && renderHospitalizacion()}
-      {activeView === 'medicamentos' && renderMedicamentos()}
-      {activeView === 'pacientes' && renderPacientes()}
-      {activeView === 'perfil-paciente' && renderPerfilPaciente()}
-      {activeView === 'citas' && renderCitas()}
-      {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
-    </>
-  ) : (
-    <>
-      {activeView === 'dashboard' && renderDashboard()}
-      {activeView === 'pacientes' && renderPacientes()}
-      {activeView === 'perfil-paciente' && renderPerfilPaciente()}
-      {activeView === 'citas' && renderCitas()}
-      {activeView === 'doctores' && renderDoctores()}
-      {activeView === 'habitaciones' && renderHabitaciones()}
-      {activeView === 'detalle-habitacion' && renderDetalleHabitacion()} 
-      {activeView === 'historias' && renderHistoriasClinicas()}
-    </>
-  )}
-</main>
+      {navOpen && (
+        <div className="nav-mobile-menu open">
+          <button className={`nav-mobile-link ${activeView === 'dashboard' ? 'active' : ''}`} onClick={() => navTo('dashboard')}><Home size={16} /> Dashboard</button>
+          {links.map(l => (
+            <button key={l.view} className={`nav-mobile-link ${activeView === l.view ? 'active' : ''}`} onClick={() => navTo(l.view)}>{l.icon} {l.label}</button>
+          ))}
+          <div className="nav-mobile-divider" />
+          <button className="nav-mobile-link" style={{ color: '#ffaaaa' }} onClick={handleLogout}><LogOut size={16} /> Cerrar Sesión</button>
+        </div>
+      )}
+
+      <main className="main-content">
+        {user?.rol === 'doctor' || user?.rol === 'enfermero' ? (
+          <>
+            {activeView === 'dashboard' && renderDashboardDoctor()}
+            {activeView === 'consulta' && user?.rol === 'doctor' && renderConsulta()}
+            {activeView === 'hospitalizacion' && renderHospitalizacion()}
+            {activeView === 'medicamentos' && renderMedicamentos()}
+            {activeView === 'pacientes' && renderPacientes()}
+            {activeView === 'perfil-paciente' && renderPerfilPaciente()}
+            {activeView === 'citas' && renderCitas()}
+            {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
+          </>
+        ) : (
+          <>
+            {activeView === 'dashboard' && renderDashboard()}
+            {activeView === 'mis-citas' && renderMisCitas()}
+            {activeView === 'pacientes' && renderPacientes()}
+            {activeView === 'perfil-paciente' && renderPerfilPaciente()}
+            {activeView === 'citas' && renderCitas()}
+            {activeView === 'doctores' && renderDoctores()}
+            {activeView === 'habitaciones' && renderHabitaciones()}
+            {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
+            {activeView === 'historias' && renderHistoriasClinicas()}
+          </>
+        )}
+      </main>
     </div>
   );
 };

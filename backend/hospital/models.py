@@ -45,6 +45,13 @@ class Paciente(models.Model):
     alergias = models.TextField(blank=True)
     seguro_medico = models.CharField(max_length=100, blank=True)
     numero_historia = models.CharField(max_length=50, unique=True)
+    medico_cabecera = models.ForeignKey(
+        'Doctor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pacientes_cabecera'
+    )
     fecha_registro = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
     
@@ -159,6 +166,8 @@ class Habitacion(models.Model):
         ('triple', 'Triple (3 camas)'),
         ('uci', 'UCI (1 cama)'),
         ('emergencia', 'Emergencia (1 cama)'),
+        ('consulta', 'Consulta'),
+        
     )
     
     numero = models.CharField(max_length=10, unique=True)
@@ -210,6 +219,22 @@ class Hospitalizacion(models.Model):
                     f'La habitación {self.habitacion.numero} está llena. '
                     f'Capacidad: {capacidad_habitacion}, Ocupadas: {hospitalizaciones_activas}'
                 )
+                
+        if self.pk:
+            anterior = Hospitalizacion.objects.get(pk=self.pk)
+            if anterior.estado == 'activa' and self.estado == 'alta':
+                from django.utils import timezone
+                if not self.fecha_alta:
+                    self.fecha_alta = timezone.now()
+                # Comprobar si quedan más hospitalizaciones activas en esa habitación
+                otras_activas = Hospitalizacion.objects.filter(
+                    habitacion=self.habitacion,
+                    estado='activa'
+                ).exclude(pk=self.pk).count()
+                if otras_activas == 0:
+                    self.habitacion.ocupada = False
+                    self.habitacion.save()
+
         
         super().save(*args, **kwargs)
 
