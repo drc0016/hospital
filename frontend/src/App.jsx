@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Stethoscope, Bed, Activity, Clock, Search, Plus, X, User, LogOut, Home, FileText, Phone, Menu } from 'lucide-react';
 import './App.css';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'https://hospital-backend-6h6n.onrender.com/api';
 
 const badgeEstado = (estado) => {
   const map = { programada: 'badge-blue', en_curso: 'badge-yellow', completada: 'badge-green', cancelada: 'badge-red' };
