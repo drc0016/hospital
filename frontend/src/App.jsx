@@ -42,6 +42,9 @@ const HospitalManagementSystem = () => {
   const [departamentos, setDepartamentos] = useState([]);
   const [showFormDerivacion, setShowFormDerivacion] = useState(false);
   const [nuevaDerivacion, setNuevaDerivacion] = useState({ departamento: '', fecha_hora: '', motivo: '' });
+  const [showFormHospitalizacion, setShowFormHospitalizacion] = useState(false);
+  const [nuevaHospitalizacion, setNuevaHospitalizacion] = useState({ habitacion: '', motivo: '', diagnostico: '' });
+  const [habitacionesDisponibles, setHabitacionesDisponibles] = useState([]);
   const [misCitas, setMisCitas] = useState([]);
   const [showModalCitaPaciente, setShowModalCitaPaciente] = useState(false);
   const [nuevaCitaPaciente, setNuevaCitaPaciente] = useState({ fecha_hora: '', motivo: '' });
@@ -207,6 +210,47 @@ const HospitalManagementSystem = () => {
       if (r.ok) { const data = await r.json(); alert(`Derivación creada. Doctor asignado: ${data.doctor_info?.nombre_completo || 'asignado'}`); setShowFormDerivacion(false); setNuevaDerivacion({ departamento: '', fecha_hora: '', motivo: '' }); }
       else { const err = await r.json(); alert(err.error || 'Error al crear la derivación'); }
     } catch { alert('Error al crear la derivación'); }
+  };
+
+  const fetchHabitacionesDisponibles = async () => {
+    try {
+      if (!misDoctorData?.departamento) return;
+      const r = await fetch(`${API_URL}/habitaciones/?departamento=${misDoctorData.departamento}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await r.json();
+      const todas = data.results || data;
+      const capMap = { individual: 1, doble: 2, triple: 3, uci: 1, emergencia: 1 };
+      setHabitacionesDisponibles(todas.filter(h => {
+        const cap = capMap[h.tipo] || 1;
+        return (h.ocupadas || 0) < cap && h.activa && h.tipo !== 'consulta';
+      }));
+    } catch { }
+  };
+
+  const handleHospitalizar = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await fetch(`${API_URL}/hospitalizaciones/`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          paciente: citaEnConsulta.paciente_info.id,
+          habitacion: nuevaHospitalizacion.habitacion,
+          doctor_responsable: misDoctorData.id,
+          motivo: nuevaHospitalizacion.motivo,
+          diagnostico: nuevaHospitalizacion.diagnostico,
+        })
+      });
+      if (r.ok) {
+        alert('Paciente hospitalizado correctamente');
+        setShowFormHospitalizacion(false);
+        setNuevaHospitalizacion({ habitacion: '', motivo: '', diagnostico: '' });
+      } else {
+        const err = await r.json();
+        alert(err.detail || err.non_field_errors?.[0] || 'Error al hospitalizar');
+      }
+    } catch { alert('Error al hospitalizar'); }
   };
 
   const handleDarAlta = async (hospitalizacionId) => {
@@ -1084,6 +1128,50 @@ const HospitalManagementSystem = () => {
 
         {citaEnConsulta.historia_id && (
           <div className="space-y">
+
+            {/* Hospitalizar */}
+            {!showFormHospitalizacion ? (
+              <button
+                onClick={() => { setShowFormHospitalizacion(true); fetchHabitacionesDisponibles(); }}
+                className="btn btn-success btn-block"
+              >
+                Hospitalizar Paciente
+              </button>
+            ) : (
+              <div className="card">
+                <div className="card-header"><span className="card-title">Hospitalizar Paciente</span></div>
+                <div className="card-body">
+                  <form onSubmit={handleHospitalizar} className="space-y">
+                    <div className="form-group">
+                      <label className="form-label">Habitación disponible</label>
+                      <select className="form-control" value={nuevaHospitalizacion.habitacion} onChange={e => setNuevaHospitalizacion({ ...nuevaHospitalizacion, habitacion: e.target.value })} required>
+                        <option value="">-- Selecciona habitación --</option>
+                        {habitacionesDisponibles.map(h => (
+                          <option key={h.id} value={h.id}>Hab. {h.numero} · {h.tipo} · Piso {h.piso}</option>
+                        ))}
+                      </select>
+                      {habitacionesDisponibles.length === 0 && (
+                        <div className="alert alert-warning" style={{ marginTop: 8 }}>No hay habitaciones disponibles en tu departamento.</div>
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Motivo de hospitalización</label>
+                      <textarea className="form-control" rows="2" value={nuevaHospitalizacion.motivo} onChange={e => setNuevaHospitalizacion({ ...nuevaHospitalizacion, motivo: e.target.value })} required />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Diagnóstico</label>
+                      <textarea className="form-control" rows="2" value={nuevaHospitalizacion.diagnostico} onChange={e => setNuevaHospitalizacion({ ...nuevaHospitalizacion, diagnostico: e.target.value })} required />
+                    </div>
+                    <div className="flex gap-8">
+                      <button type="submit" className="btn btn-success" style={{ flex: 1 }}>Confirmar</button>
+                      <button type="button" onClick={() => setShowFormHospitalizacion(false)} className="btn btn-outline" style={{ flex: 1 }}>Cancelar</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Derivar */}
             {!showFormDerivacion ? (
               <button onClick={() => setShowFormDerivacion(true)} className="btn btn-purple btn-block">Derivar a Especialista</button>
             ) : (
@@ -1108,6 +1196,7 @@ const HospitalManagementSystem = () => {
                 </div>
               </div>
             )}
+
             <button onClick={completarConsulta} className="btn btn-danger btn-block">Finalizar Consulta</button>
           </div>
         )}
