@@ -12,6 +12,7 @@ from .historias import HistoriaClinicaViewSet
 from .medicamentos import MedicamentoViewSet
 from .prescripciones import PrescripcionViewSet
 from .dashboard import DashboardViewSet
+from .departamentos import DepartamentoViewSet
 from .auth import obtener_usuario_actual
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     'MedicamentoViewSet',
     'PrescripcionViewSet',
     'DashboardViewSet',
+    'DepartamentoViewSet',
     'obtener_usuario_actual',
 ]

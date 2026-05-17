@@ -10,19 +10,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'rol', 'telefono', 'direccion']
         extra_kwargs = {'password': {'write_only': True}}
 
-class PacienteSerializer(serializers.ModelSerializer):
-    edad = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Paciente
-        fields = '__all__'
-    
-    def get_edad(self, obj):
-        from datetime import date
-        today = date.today()
-        return today.year - obj.fecha_nacimiento.year - (
-            (today.month, today.day) < (obj.fecha_nacimiento.month, obj.fecha_nacimiento.day)
-        )
+
 
 class DepartamentoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,6 +29,21 @@ class DoctorSerializer(serializers.ModelSerializer):
     def get_nombre_completo(self, obj):
         return f"Dr. {obj.usuario.first_name} {obj.usuario.last_name}"
 
+class PacienteSerializer(serializers.ModelSerializer):
+    edad = serializers.SerializerMethodField()
+    medico_cabecera_info = DoctorSerializer(source='medico_cabecera', read_only=True)
+    
+    class Meta:
+        model = Paciente
+        fields = '__all__'
+    
+    def get_edad(self, obj):
+        from datetime import date
+        today = date.today()
+        return today.year - obj.fecha_nacimiento.year - (
+            (today.month, today.day) < (obj.fecha_nacimiento.month, obj.fecha_nacimiento.day)
+        )
+
 class CitaSerializer(serializers.ModelSerializer):
     paciente_info = PacienteSerializer(source='paciente', read_only=True)
     doctor_info = DoctorSerializer(source='doctor', read_only=True)
@@ -48,6 +51,10 @@ class CitaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cita
         fields = '__all__'
+        extra_kwargs = {
+            'paciente': {'required': False},
+            'doctor': {'required': False},
+        }
 
 class MedicamentoSerializer(serializers.ModelSerializer):
     class Meta:
