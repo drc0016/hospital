@@ -5,6 +5,29 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import *
 
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
+from .models import Usuario, Paciente, Doctor, Departamento, Cita, HistoriaClinica, Medicamento, Prescripcion, Habitacion, Hospitalizacion
+
+class UsuarioAdmin(UserAdmin):
+    fieldsets = UserAdmin.fieldsets + (
+        ('Información Adicional', {'fields': ('rol', 'telefono', 'direccion', 'paciente_asociado')}),
+    )
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Información Adicional', {'fields': ('rol', 'telefono', 'direccion', 'paciente_asociado')}),
+    )
+
+admin.site.register(Usuario, UsuarioAdmin)
+admin.site.register(Paciente)
+admin.site.register(Doctor)
+admin.site.register(Departamento)
+admin.site.register(Cita)
+admin.site.register(HistoriaClinica)
+admin.site.register(Medicamento)
+admin.site.register(Prescripcion)
+admin.site.register(Habitacion)
+admin.site.register(Hospitalizacion)
+
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
     list_display = ['username', 'email', 'first_name', 'last_name', 'rol', 'is_active']
