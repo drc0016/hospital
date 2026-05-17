@@ -543,9 +543,9 @@ const HospitalManagementSystem = () => {
               <Users size={28} color="var(--blue)" style={{ marginBottom: 8 }} />
               <div className="font-semibold">Mis Pacientes</div>
             </button>
-            <button onClick={() => navTo('hospitalizacion')} className="card" style={{ padding: 20, textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
+            <button onClick={() => navTo('habitaciones')} className="card" style={{ padding: 20, textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
               <Bed size={28} color="var(--purple)" style={{ marginBottom: 8 }} />
-              <div className="font-semibold">Hospitalizaciones</div>
+              <div className="font-semibold">Habitaciones</div>
             </button>
             <button onClick={() => navTo('medicamentos')} className="card" style={{ padding: 20, textAlign: 'center', cursor: 'pointer', border: '1px solid var(--border)' }}>
               <Activity size={28} color="var(--green)" style={{ marginBottom: 8 }} />
