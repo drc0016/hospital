@@ -382,7 +382,7 @@ const HospitalManagementSystem = () => {
     doctor: [
       { view: 'consulta', label: 'Consulta', icon: <Stethoscope size={16} /> },
       { view: 'pacientes', label: 'Pacientes', icon: <Users size={16} /> },
-      { view: 'hospitalizacion', label: 'Hospitalización', icon: <Bed size={16} /> },
+      { view: 'habitaciones', label: 'Habitaciones', icon: <Bed size={16} /> }, 
       { view: 'medicamentos', label: 'Medicamentos', icon: <Activity size={16} /> },
     ],
     enfermero: [
@@ -1285,11 +1285,12 @@ const HospitalManagementSystem = () => {
             {activeView === 'dashboard' && renderDashboardDoctor()}
             {activeView === 'consulta' && user?.rol === 'doctor' && renderConsulta()}
             {activeView === 'hospitalizacion' && renderHospitalizacion()}
+            {activeView === 'habitaciones' && renderHabitaciones()}
+            {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
             {activeView === 'medicamentos' && renderMedicamentos()}
             {activeView === 'pacientes' && renderPacientes()}
             {activeView === 'perfil-paciente' && renderPerfilPaciente()}
             {activeView === 'citas' && renderCitas()}
-            {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
           </>
         ) : (
           <>
