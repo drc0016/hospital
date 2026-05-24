@@ -382,7 +382,7 @@ const HospitalManagementSystem = () => {
     doctor: [
       { view: 'consulta', label: 'Consulta', icon: <Stethoscope size={16} /> },
       { view: 'pacientes', label: 'Pacientes', icon: <Users size={16} /> },
-      { view: 'habitaciones', label: 'Habitaciones', icon: <Bed size={16} /> }, 
+      ...(misDoctorData?.departamento_info?.nombre !== 'Medicina General' ?{ view: 'habitaciones', label: 'Habitaciones', icon: <Bed size={16} /> }, 
       { view: 'medicamentos', label: 'Medicamentos', icon: <Activity size={16} /> },
     ],
     enfermero: [
@@ -1127,14 +1127,12 @@ const HospitalManagementSystem = () => {
         )}
 
         {citaEnConsulta.historia_id && (
-          <div className="space-y">
+        <div className="space-y">
 
-            {/* Hospitalizar */}
-            {!showFormHospitalizacion ? (
-              <button
-                onClick={() => { setShowFormHospitalizacion(true); fetchHabitacionesDisponibles(); }}
-                className="btn btn-success btn-block"
-              >
+          {/* Hospitalizar — solo especialistas */}
+          {misDoctorData?.departamento_info?.nombre !== 'Medicina General' && (
+            !showFormHospitalizacion ? (
+              <button onClick={() => { setShowFormHospitalizacion(true); fetchHabitacionesDisponibles(); }} className="btn btn-success btn-block">
                 Hospitalizar Paciente
               </button>
             ) : (
@@ -1169,10 +1167,12 @@ const HospitalManagementSystem = () => {
                   </form>
                 </div>
               </div>
-            )}
+            )
+          )}
 
-            {/* Derivar */}
-            {!showFormDerivacion ? (
+          {/* Derivar — solo cabecera */}
+          {misDoctorData?.departamento_info?.nombre === 'Medicina General' && (
+            !showFormDerivacion ? (
               <button onClick={() => setShowFormDerivacion(true)} className="btn btn-purple btn-block">Derivar a Especialista</button>
             ) : (
               <div className="card">
@@ -1195,11 +1195,12 @@ const HospitalManagementSystem = () => {
                   </form>
                 </div>
               </div>
-            )}
+            )
+          )}
 
-            <button onClick={completarConsulta} className="btn btn-danger btn-block">Finalizar Consulta</button>
-          </div>
-        )}
+          <button onClick={completarConsulta} className="btn btn-danger btn-block">Finalizar Consulta</button>
+        </div>
+      )}
       </div>
     );
   };
