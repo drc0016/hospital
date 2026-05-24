@@ -26,19 +26,19 @@ class CitaViewSet(viewsets.ModelViewSet):
         user = self.request.user
         
         if user.rol == 'admin':
-            return Cita.objects.all()
+            return Cita.objects.all().order_by('-fecha_hora')
         
         if user.rol == 'doctor':
             doctor = Doctor.objects.filter(usuario=user).first()
             if doctor:
-                return Cita.objects.filter(doctor=doctor)
+                return Cita.objects.filter(doctor=doctor).order_by('-fecha_hora')
             return Cita.objects.none()
         
         if user.rol == 'enfermero':
-            return Cita.objects.all()
+            return Cita.objects.all().order_by('-fecha_hora')
         
         if user.rol == 'paciente' and user.paciente_asociado:
-            return Cita.objects.filter(paciente=user.paciente_asociado)
+            return Cita.objects.filter(paciente=user.paciente_asociado).order_by('-fecha_hora') 
         
         return Cita.objects.none()
     
