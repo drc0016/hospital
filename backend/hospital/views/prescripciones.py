@@ -54,7 +54,7 @@ class PrescripcionViewSet(viewsets.ModelViewSet):
             return Response({
                 'alerta': alerta,
                 'mensaje': f'⚠️ El paciente es alérgico a: {historia.paciente.alergias}' if alerta else 'Sin alergias conocidas',
-                'puede_continuar': True
+                'puede_continuar': not alerta
             })
         except:
             return Response({'error': 'Error al verificar alergias'}, status=400)

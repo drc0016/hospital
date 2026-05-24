@@ -188,6 +188,10 @@ const HospitalManagementSystem = () => {
 
   const guardarPrescripcion = async () => {
     if (!citaEnConsulta?.historia_id || !nuevaPrescripcion.medicamento_id) { alert('Por favor selecciona un medicamento'); return; }
+     if (alertaMedicamento?.alerta) {
+        alert('No se puede recetar este medicamento. El paciente tiene alergia registrada.');
+        return;
+    }
     try {
       const r = await fetch(`${API_URL}/prescripciones/`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ historia_clinica: citaEnConsulta.historia_id, medicamento: nuevaPrescripcion.medicamento_id, ...nuevaPrescripcion }) });
       if (r.ok) { alert('Medicamento recetado'); setNuevaPrescripcion({ medicamento_id: '', dosis: '', frecuencia: '', duracion: '', instrucciones: '' }); setAlertaMedicamento(null); fetchMedicamentos(); }
@@ -1119,7 +1123,7 @@ const HospitalManagementSystem = () => {
               <div className="form-group"><label className="form-label">Duración</label><input className="form-control" placeholder="Ej: 7 días" value={nuevaPrescripcion.duracion} onChange={e => setNuevaPrescripcion({ ...nuevaPrescripcion, duracion: e.target.value })} /></div>
               <div className="form-group"><label className="form-label">Instrucciones</label><textarea className="form-control" rows="2" value={nuevaPrescripcion.instrucciones} onChange={e => setNuevaPrescripcion({ ...nuevaPrescripcion, instrucciones: e.target.value })} /></div>
               <div className="flex gap-8">
-                <button onClick={guardarPrescripcion} className="btn btn-success" style={{ flex: 1 }}>Recetar</button>
+                <button onClick={guardarPrescripcion} className="btn btn-success" style={{ flex: 1, opacity: alertaMedicamento?.alerta ? 0.5 : 1 }} disabled={alertaMedicamento?.alerta}>Recetar</button>
                 <button onClick={() => { setNuevaPrescripcion({ medicamento_id: '', dosis: '', frecuencia: '', duracion: '', instrucciones: '' }); setAlertaMedicamento(null); }} className="btn btn-outline" style={{ flex: 1 }}>Limpiar</button>
               </div>
             </div>
