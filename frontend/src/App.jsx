@@ -382,7 +382,7 @@ const HospitalManagementSystem = () => {
     doctor: [
       { view: 'consulta', label: 'Consulta', icon: <Stethoscope size={16} /> },
       { view: 'pacientes', label: 'Pacientes', icon: <Users size={16} /> },
-      ...(misDoctorData?.departamento_info?.nombre !== 'Medicina General' ?{ view: 'habitaciones', label: 'Habitaciones', icon: <Bed size={16} /> }, 
+      { view: 'habitaciones', label: 'Habitaciones', icon: <Bed size={16} /> },
       { view: 'medicamentos', label: 'Medicamentos', icon: <Activity size={16} /> },
     ],
     enfermero: [
