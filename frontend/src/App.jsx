@@ -45,6 +45,9 @@ const HospitalManagementSystem = () => {
   const [showFormHospitalizacion, setShowFormHospitalizacion] = useState(false);
   const [nuevaHospitalizacion, setNuevaHospitalizacion] = useState({ habitacion: '', motivo: '', diagnostico: '' });
   const [habitacionesDisponibles, setHabitacionesDisponibles] = useState([]);
+  const [medicacionesHabitacion, setMedicacionesHabitacion] = useState({});
+  const [showFormMedicacion, setShowFormMedicacion] = useState(null); // id de hospitalizacion
+  const [nuevaMedicacion, setNuevaMedicacion] = useState({ medicamento: '', dosis: '', frecuencia: '', instrucciones: '' });
   const [misCitas, setMisCitas] = useState([]);
   const [showModalCitaPaciente, setShowModalCitaPaciente] = useState(false);
   const [nuevaCitaPaciente, setNuevaCitaPaciente] = useState({ fecha_hora: '', motivo: '' });
@@ -266,6 +269,45 @@ const HospitalManagementSystem = () => {
     } catch { alert('Error al dar el alta'); }
   };
 
+      const fetchMedicacionesHospitalizacion = async (hospitalizacionId) => {
+      try {
+        const r = await fetch(`${API_URL}/medicaciones-hospitalarias/?hospitalizacion=${hospitalizacionId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await r.json();
+        setMedicacionesHabitacion(prev => ({ ...prev, [hospitalizacionId]: data.results || data }));
+      } catch {}
+    };
+
+    const handleAnadirMedicacion = async (e, hospitalizacionId) => {
+      e.preventDefault();
+      try {
+        const r = await fetch(`${API_URL}/medicaciones-hospitalarias/`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ ...nuevaMedicacion, hospitalizacion: hospitalizacionId })
+        });
+        if (r.ok) {
+          setShowFormMedicacion(null);
+          setNuevaMedicacion({ medicamento: '', dosis: '', frecuencia: '', instrucciones: '' });
+          fetchMedicacionesHospitalizacion(hospitalizacionId);
+        } else alert('Error al añadir medicación');
+      } catch { alert('Error al añadir medicación'); }
+    };
+
+    const handleQuitarMedicacion = async (medicacionId, hospitalizacionId) => {
+      if (!window.confirm('¿Quitar este medicamento?')) return;
+      try {
+        const r = await fetch(`${API_URL}/medicaciones-hospitalarias/${medicacionId}/`, {
+          method: 'PATCH',
+          headers: authHeaders(),
+          body: JSON.stringify({ activo: false })
+        });
+        if (r.ok) fetchMedicacionesHospitalizacion(hospitalizacionId);
+        else alert('Error al quitar medicación');
+      } catch { alert('Error al quitar medicación'); }
+    };
+
   const volverALista = () => { setSelectedPaciente(null); setPacienteHistorias([]); setPacienteCitas([]); setActiveView('pacientes'); setActiveTab('info'); };
 
   const handleCreatePaciente = async (e) => {
@@ -310,6 +352,7 @@ const HospitalManagementSystem = () => {
   useEffect(() => {
     if (token && selectedHabitacion && activeView === 'detalle-habitacion') {
       fetchPacientesHabitacion(selectedHabitacion.id);
+      if (user?.rol === 'doctor') fetchMedicamentos();
     }
   }, [selectedHabitacion, activeView, token]);
 
@@ -913,7 +956,7 @@ const HospitalManagementSystem = () => {
   };
 
   // ── DETALLE HABITACION ──
-  const renderDetalleHabitacion = () => {
+const renderDetalleHabitacion = () => {
     if (!selectedHabitacion) return null;
     const capMap = { individual: 1, doble: 2, triple: 3, uci: 1, emergencia: 1 };
     const cap = capMap[selectedHabitacion.tipo] || 1;
@@ -958,11 +1001,71 @@ const HospitalManagementSystem = () => {
                   {item.paciente.alergias && <div className="alert alert-danger mb-8"><strong>⚠ Alergias:</strong> {item.paciente.alergias}</div>}
                   <div className="mr-block mr-diagnostico mb-4"><div className="mr-block-label">Motivo hospitalización</div><div className="mr-block-text">{item.hospitalizacion.motivo}</div></div>
                   <div className="mr-block mr-tratamiento mb-4"><div className="mr-block-label">Diagnóstico</div><div className="mr-block-text">{item.hospitalizacion.diagnostico}</div></div>
-                  {item.ultima_consulta && <>
+                  {item.ultima_consulta && (
                     <div className="mr-block mr-sintomas mb-4"><div className="mr-block-label">Tratamiento</div><div className="mr-block-text">{item.ultima_consulta.tratamiento}</div></div>
-                  </>}
+                  )}
                   <div className="separator" />
-                  <div className="text-muted text-sm">Ingreso: {formatearFecha(item.hospitalizacion.fecha_ingreso)}</div>
+                  <div className="text-muted text-sm mb-8">Ingreso: {formatearFecha(item.hospitalizacion.fecha_ingreso)}</div>
+
+                  {/* ── MEDICACIÓN HOSPITALARIA ── */}
+                  <div className="separator" />
+                  <div className="flex justify-between items-center mb-8" style={{ marginTop: 10 }}>
+                    <div className="info-block-label">Medicación Hospitalaria</div>
+                    {user?.rol === 'doctor' && (
+                      <button
+                        onClick={() => { setShowFormMedicacion(item.id); fetchMedicacionesHospitalizacion(item.id); }}
+                        className="btn btn-primary btn-sm"
+                      >
+                        <Plus size={13} /> Añadir
+                      </button>
+                    )}
+                  </div>
+
+                  {(medicacionesHabitacion[item.id] || []).length === 0 ? (
+                    <div className="text-muted text-sm mb-8">Sin medicaciones activas</div>
+                  ) : (
+                    <div className="space-y" style={{ marginBottom: 8 }}>
+                      {(medicacionesHabitacion[item.id] || []).map(med => (
+                        <div key={med.id} className="info-block flex justify-between items-start">
+                          <div>
+                            <div className="font-semibold" style={{ fontSize: 13 }}>{med.medicamento_info?.nombre}</div>
+                            <div className="text-secondary text-sm">{med.dosis} · {med.frecuencia}</div>
+                            {med.instrucciones && <div className="text-muted text-sm">{med.instrucciones}</div>}
+                          </div>
+                          {user?.rol === 'doctor' && (
+                            <button onClick={() => handleQuitarMedicacion(med.id, item.id)} className="btn btn-danger btn-sm" style={{ marginLeft: 8, flexShrink: 0 }}>Quitar</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showFormMedicacion === item.id && (
+                    <div className="card" style={{ marginTop: 10 }}>
+                      <div className="card-header"><span className="card-title">Añadir Medicamento</span></div>
+                      <div className="card-body">
+                        <form onSubmit={e => handleAnadirMedicacion(e, item.id)} className="space-y">
+                          <div className="form-group">
+                            <label className="form-label">Medicamento</label>
+                            <select className="form-control" value={nuevaMedicacion.medicamento} onChange={e => setNuevaMedicacion({ ...nuevaMedicacion, medicamento: e.target.value })} required>
+                              <option value="">-- Selecciona --</option>
+                              {medicamentosDisponibles.map(m => <option key={m.id} value={m.id}>{m.nombre} — {m.presentacion}</option>)}
+                            </select>
+                          </div>
+                          <div className="form-grid-2">
+                            <div className="form-group"><label className="form-label">Dosis</label><input className="form-control" placeholder="Ej: 500mg" value={nuevaMedicacion.dosis} onChange={e => setNuevaMedicacion({ ...nuevaMedicacion, dosis: e.target.value })} required /></div>
+                            <div className="form-group"><label className="form-label">Frecuencia</label><input className="form-control" placeholder="Ej: 8 horas" value={nuevaMedicacion.frecuencia} onChange={e => setNuevaMedicacion({ ...nuevaMedicacion, frecuencia: e.target.value })} required /></div>
+                          </div>
+                          <div className="form-group"><label className="form-label">Instrucciones</label><textarea className="form-control" rows="2" value={nuevaMedicacion.instrucciones} onChange={e => setNuevaMedicacion({ ...nuevaMedicacion, instrucciones: e.target.value })} /></div>
+                          <div className="flex gap-8">
+                            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Confirmar</button>
+                            <button type="button" onClick={() => setShowFormMedicacion(null)} className="btn btn-outline" style={{ flex: 1 }}>Cancelar</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               ))}
             </div>
