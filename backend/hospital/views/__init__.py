@@ -14,6 +14,7 @@ from .prescripciones import PrescripcionViewSet
 from .dashboard import DashboardViewSet
 from .departamentos import DepartamentoViewSet
 from .auth import obtener_usuario_actual
+from .medicaciones import MedicacionHospitalariaViewSet
 
 __all__ = [
     'PacienteViewSet',
@@ -27,4 +28,5 @@ __all__ = [
     'DashboardViewSet',
     'DepartamentoViewSet',
     'obtener_usuario_actual',
+    'MedicacionHospitalariaViewSet',
 ]

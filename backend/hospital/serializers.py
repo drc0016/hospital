@@ -141,3 +141,14 @@ class HospitalizacionSerializer(serializers.ModelSerializer):
         
         delta = fecha_fin - fecha_ingreso
         return delta.days
+    
+class MedicacionHospitalariaSerializer(serializers.ModelSerializer):
+    medicamento_info = MedicamentoSerializer(source='medicamento', read_only=True)
+    doctor_info = DoctorSerializer(source='doctor', read_only=True)
+
+    class Meta:
+        model = MedicacionHospitalaria
+        fields = '__all__'
+        extra_kwargs = {
+            'doctor': {'required': False},
+        }
