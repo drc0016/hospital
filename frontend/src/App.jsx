@@ -1411,6 +1411,7 @@ const renderDetalleHabitacion = () => {
             {activeView === 'habitaciones' && renderHabitaciones()}
             {activeView === 'detalle-habitacion' && renderDetalleHabitacion()}
             {activeView === 'historias' && renderHistoriasClinicas()}
+            
           </>
         )}
       </main>
