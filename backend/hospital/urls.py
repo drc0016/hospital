@@ -15,6 +15,7 @@ router.register(r'habitaciones', HabitacionViewSet)
 router.register(r'hospitalizaciones', HospitalizacionViewSet)
 router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 router.register(r'departamentos', DepartamentoViewSet)
+router.register(r'medicaciones-hospitalarias', MedicacionHospitalariaViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

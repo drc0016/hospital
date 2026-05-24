@@ -246,3 +246,20 @@ class Hospitalizacion(models.Model):
         
     def __str__(self):
         return f"Hospitalización {self.paciente} - Hab. {self.habitacion.numero}"
+    
+class MedicacionHospitalaria(models.Model):
+    hospitalizacion = models.ForeignKey(Hospitalizacion, on_delete=models.CASCADE, related_name='medicaciones')
+    medicamento = models.ForeignKey(Medicamento, on_delete=models.CASCADE)
+    dosis = models.CharField(max_length=100)
+    frecuencia = models.CharField(max_length=100)
+    instrucciones = models.TextField(blank=True)
+    fecha_inicio = models.DateTimeField(auto_now_add=True)
+    activo = models.BooleanField(default=True)
+    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = 'medicaciones_hospitalarias'
+        ordering = ['-fecha_inicio']
+
+    def __str__(self):
+        return f"{self.medicamento} — {self.hospitalizacion.paciente}"
